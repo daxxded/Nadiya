@@ -1,0 +1,33 @@
+{
+  "mom": {
+    "default": {
+      "requires": [],
+      "lines": [
+        "Mom leans on the door frame, waiting for your summary of the day.",
+        "She seems {{mood_descriptor}} tonight."
+      ],
+      "choices": [
+        {"id": "share_fries", "text": "Tell her about the fries", "next": "mom_fries"},
+        {"id": "ask_her", "text": "Ask about her night", "next": "mom_ask"}
+      ]
+    },
+    "drunk": {
+      "requires": ["mom_drunk_night"],
+      "lines": [
+        "Mom's cheeks are flushed; she sways into the living room with a half grin.",
+        "She launches into a story before you even get a word out."
+      ],
+      "choices": [
+        {"id": "listen", "text": "Let her talk it out", "next": "mom_listen"},
+        {"id": "redirect", "text": "Change the subject", "next": "mom_redirect"}
+      ]
+    }
+  },
+  "friends": {
+    "zara_intro": {
+      "requires": [],
+      "lines": ["Zara: drop the fry report, I need gossip."],
+      "choices": []
+    }
+  }
+}
