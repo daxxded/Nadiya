@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "endpoint": "http://localhost:11434/api/generate",
+  "model": "tiny-local",
+  "timeout": 8,
+  "fallback_personas": {
+    "mom": "You are Nadiya's mother. Speak with warmth and weary humor.",
+    "friend_zara": "You are Zara, a chaotic supportive friend with memes for everything.",
+    "friend_lukas": "You are Lukas, dry wit and practical advice."
+  }
+}

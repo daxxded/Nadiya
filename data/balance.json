@@ -1,0 +1,62 @@
+{
+  "segments": {
+    "morning": {
+      "energy_cost": 10,
+      "base_timer": 28
+    },
+    "afternoon": {
+      "energy_cost": 6,
+      "hunger_bonus_success": 15,
+      "hunger_penalty_fail": -5
+    },
+    "evening": {
+      "chat_mood_bonus": 4,
+      "chat_mood_penalty": -3
+    },
+    "night": {
+      "base_energy_restore": 35,
+      "mood_floor": 20
+    }
+  },
+  "events": {
+    "mom_drunk_threshold": 65,
+    "perfect_fries_hits": 0,
+    "bad_school_collisions": 2,
+    "friend_ignore_threshold": 25
+  },
+  "fry_minigame": {
+    "flip_window": 1.2,
+    "flips_needed": 3,
+    "hit_mood_penalty": -2,
+    "success_reward": {
+      "mood": 10,
+      "hunger": 18,
+      "energy": -4
+    },
+    "fail_penalty": {
+      "mood": -8,
+      "energy": -10
+    }
+  },
+  "school": {
+    "annoying_collision": {
+      "mood": -6,
+      "timer": -3
+    },
+    "friendly_collision": {
+      "mood": 3
+    },
+    "quiz_pass": {
+      "mood": 8,
+      "german_xp": 55
+    },
+    "quiz_fail": {
+      "mood": -8
+    }
+  },
+  "sleep": {
+    "base_restore": 40,
+    "mood_bonus": 6,
+    "hunger_decay": -12
+  }
+}
