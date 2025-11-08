@@ -41,13 +41,13 @@ class SchoolScene(Scene):
         self.test_controller: GermanTestController | None = None
         self.in_test = False
         self.classmate_sprites = classmate_variants()
-        self._spawn_npcs()
-        self._school_cfg = get_balance_section("school")
-        self.summary: List[str] = []
-        self.collisions_today = 0
         self._map_width = 6
         self._map_height = 6
         self._walls = {(x, 5) for x in range(self._map_width)}
+        self._school_cfg = get_balance_section("school")
+        self.summary: List[str] = []
+        self.collisions_today = 0
+        self._spawn_npcs()
         self._input: dict[int, bool] = {}
         self.origin = (self.screen.get_width() // 2, 240)
         self.background = pygame.Surface(self.screen.get_size())
