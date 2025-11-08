@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from game.balance import get_balance_section
 from game.events import EventSystem
+from game.settings import UserSettings
 
 
 class TimeSegment(Enum):
@@ -77,6 +78,15 @@ class GameState:
     relationships: Relationships = field(default_factory=Relationships)
     flags: EventFlags = field(default_factory=EventFlags)
     events: EventSystem = field(default_factory=EventSystem)
+    settings: UserSettings = field(default_factory=UserSettings)
+    segment_time: float = 0.0
+    segment_duration: float = 30.0
+    segment_start_minutes: float = 420.0
+    segment_duration_minutes: float = 120.0
+    day_minutes: float = 420.0
+
+    def __post_init__(self) -> None:
+        self._recalculate_segment(self.segment)
 
     def advance_segment(self) -> None:
         order = [TimeSegment.MORNING, TimeSegment.AFTERNOON, TimeSegment.EVENING, TimeSegment.NIGHT]
@@ -87,6 +97,7 @@ class GameState:
             self.handle_new_day()
         else:
             self.segment = order[idx + 1]
+        self._recalculate_segment(self.segment)
 
     def handle_new_day(self) -> None:
         sleep_cfg = get_balance_section("sleep")
@@ -94,6 +105,7 @@ class GameState:
         self.stats.apply_mood(float(sleep_cfg.get("mood_bonus", 5)))
         self.stats.apply_hunger(float(sleep_cfg.get("hunger_decay", -8)))
         self.events.new_day()
+        self._recalculate_segment(self.segment)
 
     def apply_outcome(self, mood: float = 0.0, hunger: float = 0.0, energy: float = 0.0, german_xp: float = 0.0) -> None:
         if mood:
@@ -130,6 +142,35 @@ class GameState:
         night_cfg = get_balance_section("segments").get("night", {})
         mood_floor = float(night_cfg.get("mood_floor", 15))
         return self.stats.energy <= 5 or self.stats.mood <= mood_floor
+
+    def start_segment(self, segment: TimeSegment) -> None:
+        self.segment = segment
+        self._recalculate_segment(segment)
+
+    def tick_clock(self, dt: float) -> None:
+        if self.segment_duration <= 0:
+            self.segment_time = 0.0
+            return
+        self.segment_time = min(self.segment_time + dt, self.segment_duration)
+        progress = min(1.0, self.segment_time / self.segment_duration)
+        self.day_minutes = self.segment_start_minutes + progress * self.segment_duration_minutes
+
+    def _recalculate_segment(self, segment: TimeSegment) -> None:
+        segments_cfg = get_balance_section("segments")
+        key = segment.name.lower()
+        cfg = segments_cfg.get(key, {})
+        self.segment_duration = float(cfg.get("base_timer", 30.0))
+        start_minutes = float(cfg.get("clock_start", self.segment_start_minutes))
+        end_minutes = float(cfg.get("clock_end", start_minutes + max(30.0, self.segment_duration * 4)))
+        self.segment_start_minutes = start_minutes
+        self.segment_duration_minutes = max(1.0, end_minutes - start_minutes)
+        self.segment_time = 0.0
+        self.day_minutes = start_minutes
+
+    def formatted_clock(self) -> str:
+        hours = int(self.day_minutes // 60) % 24
+        minutes = int(self.day_minutes % 60)
+        return f"{hours:02d}:{minutes:02d}"
 
 
 __all__ = ["GameState", "TimeSegment", "PlayerStats", "Relationships", "EventFlags"]

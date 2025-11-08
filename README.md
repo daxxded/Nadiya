@@ -23,10 +23,10 @@ PYTHONPATH=src python -m game.main
 Add `--headless` to either command if you need to run in environments without a display (renders nothing but exercises the loop).
 
 ### Controls
-- **Movement (school & kitchen)**: `WASD` or arrow keys.
+- **Movement (school & kitchen)**: `WASD` or arrow keys (hold for smooth gliding).
 - **Interact / confirm**: `Space` or `Enter`.
 - **Chat typing**: standard keyboard entry, `Enter` to send, `Backspace` to delete, `Tab` to swap friends.
-- **Pause/Exit**: `Esc` or window close.
+- **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window or press `Ctrl+Esc` to quit.
 
 ## Gameplay Flow
 Each day is split into the four planned segments plus an end-of-night rest phase:
@@ -36,7 +36,7 @@ Each day is split into the four planned segments plus an end-of-night rest phase
 4. **Night – Mom**: branching conversation that stitches scripted beats with local AI (or fallbacks) before sliding into the sleep summary screen.
 5. **Sleep Transition**: fade overlay that tallies the day's events, applies balancing hooks from JSON, and resets the loop.
 
-Player stats (mood, hunger, energy, German skill, and relationships) update in real time and influence modifiers on actions. Segment transitions now display summaries and can skip ahead if the player is exhausted or spirals mood too low.
+Player stats (mood, hunger, energy, German skill, and relationships) update in real time and influence modifiers on actions. Segment transitions now display summaries with fade effects, can skip ahead if the player is exhausted or spirals mood too low, and the HUD shows a live clock plus segment progress.
 
 ## Configuration & Data
 

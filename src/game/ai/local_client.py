@@ -12,7 +12,7 @@ import random
 import threading
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional
 
 import pygame
 
@@ -65,16 +65,16 @@ class LocalAIClient:
         self._lock = threading.Lock()
         self.settings = LocalAISettings.load()
 
-    def submit(self, request: AIRequest, callback: Optional[Callable[[str], None]] = None) -> int:
+    def submit(self, request: AIRequest, callback: Optional[Callable[[str], None]] = None, *, allow_remote: bool = True) -> int:
         with self._lock:
             request_id = self._counter
             self._counter += 1
         self.pending.append(request)
-        threading.Thread(target=self._run_generation, args=(request_id, request, callback), daemon=True).start()
+        threading.Thread(target=self._run_generation, args=(request_id, request, callback, allow_remote), daemon=True).start()
         return request_id
 
-    def _run_generation(self, request_id: int, request: AIRequest, callback: Optional[Callable[[str], None]]) -> None:
-        if self.settings.enabled:
+    def _run_generation(self, request_id: int, request: AIRequest, callback: Optional[Callable[[str], None]], allow_remote: bool) -> None:
+        if allow_remote and self.settings.enabled:
             response = self._call_http(request)
         else:
             response = None

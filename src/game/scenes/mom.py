@@ -1,4 +1,4 @@
-"""Night scene with Nadiya's mom."""
+"""Night segment with mom featuring optional AI dialogue."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from game.config import COLORS
 from game.dialogue import DialogueManager
 from game.scenes.base import Scene
 from game.state import GameState
+from game.ui.fonts import PixelFont
+from game.ui.pixel_art import draw_living_room_background, mom_sprite, nadiya_sprite
 
 
 class MomScene(Scene):
@@ -19,8 +21,8 @@ class MomScene(Scene):
         super().__init__(state)
         self.ai_client = ai_client
         self.screen = screen
-        self.font = pygame.font.Font(None, 32)
-        self.small_font = pygame.font.Font(None, 26)
+        self.font = PixelFont(base_size=12, scale=2)
+        self.big_font = PixelFont(base_size=14, scale=3, bold=True)
         self.dialogue: list[str] = []
         self.choice_index = 0
         self.waiting_for_ai = False
@@ -29,6 +31,11 @@ class MomScene(Scene):
         self._active_choices: list[tuple[str, str]] = []
         self._mode = "neutral"
         self._events_cfg = get_balance_section("events")
+        self.background = pygame.Surface(self.screen.get_size())
+        draw_living_room_background(self.background)
+        self.mom_sprite = mom_sprite()
+        self.nadiya_sprite = nadiya_sprite()
+        self.status_message = ""
 
     def on_enter(self) -> None:
         self._mode = self._decide_mode()
@@ -61,22 +68,56 @@ class MomScene(Scene):
         pass
 
     def render(self, surface: pygame.Surface) -> None:
-        surface.fill((28, 26, 32))
-        y = 100
-        for line in self.dialogue[-6:]:
-            text_surface = self.font.render(line, True, COLORS.text_light)
-            surface.blit(text_surface, (80, y))
-            y += 40
-
-        if not self.completed:
-            for idx, choice in enumerate(self._active_choices):
-                _, label = choice
-                color = COLORS.accent_ui if idx == self.choice_index else COLORS.text_light
-                choice_surface = self.font.render(label, True, color)
-                surface.blit(choice_surface, (120, 420 + idx * 36))
+        surface.blit(self.background, (0, 0))
+        self._draw_characters(surface)
+        self._draw_dialogue(surface)
+        self._draw_choices(surface)
         if self.waiting_for_ai:
-            typing_surface = self.small_font.render("Mom is thinking...", True, COLORS.accent_cool)
+            typing_surface = self.font.render("Mom is thinking...", COLORS.accent_cool)
             surface.blit(typing_surface, (120, 520))
+        if self.state.settings.ai_enabled and not self.ai_client.settings.enabled:
+            warning = self.font.render("AI server offline — using canned lines", COLORS.accent_ui)
+            surface.blit(warning, (80, 560))
+
+    def _draw_characters(self, surface: pygame.Surface) -> None:
+        mom_rect = self.mom_sprite.get_rect()
+        mom_rect.bottomleft = (120, surface.get_height() - 80)
+        surface.blit(self.mom_sprite, mom_rect)
+        nadiya_rect = self.nadiya_sprite.get_rect()
+        nadiya_rect.bottomright = (surface.get_width() - 120, surface.get_height() - 60)
+        surface.blit(self.nadiya_sprite, nadiya_rect)
+
+    def _draw_dialogue(self, surface: pygame.Surface) -> None:
+        panel = pygame.Surface((surface.get_width() - 160, 220), pygame.SRCALPHA)
+        panel.fill((18, 14, 20, 220))
+        panel_rect = panel.get_rect()
+        panel_rect.topleft = (80, 100)
+        surface.blit(panel, panel_rect)
+        lines = self.dialogue[-6:]
+        y = panel_rect.top + 20
+        for line in lines:
+            speaker, _, text = line.partition(":")
+            speaker_surface = self.font.render(f"{speaker.strip()}:", COLORS.accent_fries)
+            surface.blit(speaker_surface, (panel_rect.left + 20, y))
+            text_surface = self.font.render(text.strip(), COLORS.text_light)
+            surface.blit(text_surface, (panel_rect.left + 150, y))
+            y += 32
+
+    def _draw_choices(self, surface: pygame.Surface) -> None:
+        if self.completed or not self._active_choices:
+            return
+        for idx, choice in enumerate(self._active_choices):
+            _, label = choice
+            y = 360 + idx * 44
+            rect = pygame.Rect(0, 0, surface.get_width() - 240, 36)
+            rect.center = (surface.get_width() // 2, y)
+            bg_color = (60, 42, 58, 220) if idx == self.choice_index else (36, 28, 34, 200)
+            panel = pygame.Surface(rect.size, pygame.SRCALPHA)
+            panel.fill(bg_color)
+            surface.blit(panel, rect)
+            text_color = COLORS.accent_ui if idx == self.choice_index else COLORS.text_light
+            label_surface = self.font.render(label, text_color)
+            surface.blit(label_surface, (rect.left + 20, rect.top + 6))
 
     def _trigger_ai(self) -> None:
         if self.waiting_for_ai:
@@ -91,7 +132,7 @@ class MomScene(Scene):
         }
         request = AIRequest("Nadiya", "mom", context, "Mom starts the conversation")
         self.waiting_for_ai = True
-        self.ai_client.submit(request, callback=self._on_ai_response)
+        self.ai_client.submit(request, callback=self._on_ai_response, allow_remote=self.state.settings.ai_enabled)
 
     def _on_ai_response(self, text: str) -> None:
         self.waiting_for_ai = False

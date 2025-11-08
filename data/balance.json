@@ -2,20 +2,31 @@
   "segments": {
     "morning": {
       "energy_cost": 10,
-      "base_timer": 28
+      "base_timer": 32,
+      "clock_start": 420,
+      "clock_end": 540
     },
     "afternoon": {
       "energy_cost": 6,
       "hunger_bonus_success": 15,
-      "hunger_penalty_fail": -5
+      "hunger_penalty_fail": -5,
+      "base_timer": 36,
+      "clock_start": 540,
+      "clock_end": 690
     },
     "evening": {
       "chat_mood_bonus": 4,
-      "chat_mood_penalty": -3
+      "chat_mood_penalty": -3,
+      "base_timer": 40,
+      "clock_start": 690,
+      "clock_end": 870
     },
     "night": {
       "base_energy_restore": 35,
-      "mood_floor": 20
+      "mood_floor": 20,
+      "base_timer": 22,
+      "clock_start": 870,
+      "clock_end": 960
     }
   },
   "events": {
