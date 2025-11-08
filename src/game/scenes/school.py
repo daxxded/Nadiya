@@ -30,6 +30,7 @@ class SchoolScene(Scene):
     def __init__(self, state: GameState, screen: pygame.Surface) -> None:
         super().__init__(state)
         self.screen = screen
+        self.small_font = PixelFont(base_size=10, scale=2)
         self.font = PixelFont(base_size=12, scale=2)
         self.big_font = PixelFont(base_size=14, scale=3, bold=True)
         self.player_pos = pygame.math.Vector2(2.5, 4.5)
@@ -39,6 +40,7 @@ class SchoolScene(Scene):
         self.timer = float(get_balance_section("segments")["morning"].get("base_timer", 32))
         self.test_controller: GermanTestController | None = None
         self.in_test = False
+        self.classmate_sprites = classmate_variants()
         self._spawn_npcs()
         self._school_cfg = get_balance_section("school")
         self.summary: List[str] = []
@@ -50,7 +52,6 @@ class SchoolScene(Scene):
         self.origin = (self.screen.get_width() // 2, 240)
         self.background = pygame.Surface(self.screen.get_size())
         draw_school_background(self.background)
-        self.classmate_sprites = classmate_variants()
         self.status_message = ""
         self.status_timer = 0.0
 
