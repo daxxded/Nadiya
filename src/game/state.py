@@ -21,7 +21,9 @@ class TimeSegment(Enum):
 @dataclass
 class Relationships:
     mom: float = 50.0
-    friends: Dict[str, float] = field(default_factory=lambda: {"zara": 50.0, "lukas": 50.0})
+    friends: Dict[str, float] = field(
+        default_factory=lambda: {"zara": 50.0, "lukas": 50.0, "mina": 50.0}
+    )
 
     def adjust_friend(self, friend_id: str, delta: float) -> None:
         self.friends.setdefault(friend_id, 50.0)

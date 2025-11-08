@@ -2,6 +2,8 @@
 
 This repository now contains a playable vertical slice prototype for **Nadiya Simulator**, a compact isometric life-sim that blends chaotic humor, grounded emotional beats, and locally hosted AI-driven dialogue. The original narrative and systems design remains available in [`docs/design.md`](docs/design.md).
 
+The latest update turns the afternoon and evening sequences into a freely explorable apartment: wander between rooms via doors, trigger the fry shift from the kitchen, and open a phone UI complete with faux apps and a Discord-like chat for three friends.
+
 ## Getting Started
 
 ### Prerequisites
@@ -23,16 +25,16 @@ PYTHONPATH=src python -m game.main
 Add `--headless` to either command if you need to run in environments without a display (renders nothing but exercises the loop).
 
 ### Controls
-- **Movement (school & kitchen)**: `WASD` or arrow keys (hold for smooth gliding).
-- **Interact / confirm**: `Space` or `Enter`.
-- **Chat typing**: standard keyboard entry, `Enter` to send, `Backspace` to delete, `Tab` to swap friends.
+- **Movement (school & home)**: `WASD` or arrow keys for free gliding.
+- **Interact / confirm**: `Space` or `Enter` to use doors, minigame stations, or UI selections.
+- **Phone (exploration segments)**: press `P` to pull the phone out anywhere at home; use arrows or `Q/E` to switch friends inside Discord, type naturally, `Enter` to send, and `Esc`/`Backspace` to back out of apps.
 - **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window or press `Ctrl+Esc` to quit.
 
 ## Gameplay Flow
 Each day is split into the four planned segments plus an end-of-night rest phase:
 1. **Morning – School**: dodge annoying classmates across an isometric hallway, then sit a German quiz whose rewards scale with performance.
-2. **Afternoon – Kitchen**: fry minigame where you dodge oil splashes, juggle timing windows, and feed momentum into Nadiya's stats.
-3. **Evening – Chat**: text with friends through a retro chat window. Relationship values, mood, and configuration knobs decide whether friends banter back or leave you on read.
+2. **Afternoon – Home**: explore Nadiya's apartment, slip into the kitchen via door prompts, and start the fry minigame where you dodge oil splashes, juggle timing windows, and feed momentum into her stats.
+3. **Evening – Phone**: roam the flat, crack open the in-game phone, and chat with three AI-driven friends on the Discord-style app. Relationship values, mood, and configuration knobs decide whether friends banter back or leave you on read.
 4. **Night – Mom**: branching conversation that stitches scripted beats with local AI (or fallbacks) before sliding into the sleep summary screen.
 5. **Sleep Transition**: fade overlay that tallies the day's events, applies balancing hooks from JSON, and resets the loop.
 

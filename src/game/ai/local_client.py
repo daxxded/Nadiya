@@ -121,6 +121,8 @@ class LocalAIClient:
             return self._friend_stub("Zara", prompt, context_flags)
         if persona == "friend_lukas":
             return self._friend_stub("Lukas", prompt, context_flags)
+        if persona == "friend_mina":
+            return self._friend_stub("Mina", prompt, context_flags)
         return "I'm not sure what to say right now, but I'm here."
 
     def _mom_stub(self, prompt: str, context_flags: str) -> str:

@@ -9,8 +9,7 @@ import pygame
 from game.ai.local_client import LocalAIClient
 from game.config import FPS
 from game.scenes.base import Scene
-from game.scenes.chat_scene import ChatScene
-from game.scenes.kitchen import KitchenScene
+from game.scenes.home import HomeScene
 from game.scenes.mom import MomScene
 from game.scenes.school import SchoolScene
 from game.scenes.sleep import SleepScene
@@ -109,9 +108,13 @@ class SceneController:
         if segment == TimeSegment.MORNING:
             self.active_scene = SchoolScene(self.state, self.screen)
         elif segment == TimeSegment.AFTERNOON:
-            self.active_scene = KitchenScene(self.state, self.screen)
+            self.active_scene = HomeScene(
+                self.state, self.screen, self.ai_client, mode="afternoon"
+            )
         elif segment == TimeSegment.EVENING:
-            self.active_scene = ChatScene(self.state, self.screen, self.ai_client)
+            self.active_scene = HomeScene(
+                self.state, self.screen, self.ai_client, mode="evening"
+            )
         elif segment == TimeSegment.NIGHT:
             self.active_scene = MomScene(self.state, self.ai_client, self.screen)
         else:
