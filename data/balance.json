@@ -2,30 +2,30 @@
   "segments": {
     "morning": {
       "energy_cost": 10,
-      "base_timer": 32,
-      "clock_start": 420,
-      "clock_end": 540
+      "base_timer": 2100,
+      "clock_start": 495,
+      "clock_end": 545
     },
     "afternoon": {
       "energy_cost": 6,
       "hunger_bonus_success": 15,
       "hunger_penalty_fail": -5,
       "base_timer": 36,
-      "clock_start": 540,
-      "clock_end": 690
+      "clock_start": 545,
+      "clock_end": 705
     },
     "evening": {
       "chat_mood_bonus": 4,
       "chat_mood_penalty": -3,
       "base_timer": 40,
-      "clock_start": 690,
-      "clock_end": 870
+      "clock_start": 705,
+      "clock_end": 885
     },
     "night": {
       "base_energy_restore": 35,
       "mood_floor": 20,
       "base_timer": 22,
-      "clock_start": 870,
+      "clock_start": 885,
       "clock_end": 960
     }
   },
@@ -63,7 +63,19 @@
     },
     "quiz_fail": {
       "mood": -8
+    },
+    "phases": {
+      "exterior_seconds": 900,
+      "hallway_seconds": 300,
+      "class_seconds": 900
     }
+  },
+  "vending": {
+    "items": [
+      {"id": "coffee", "label": "Coffee", "price": 2.5, "hunger": 4},
+      {"id": "sandwich", "label": "Mini Sandwich", "price": 3.8, "hunger": 10},
+      {"id": "apple", "label": "Apple", "price": 1.2, "hunger": 6}
+    ]
   },
   "sleep": {
     "base_restore": 40,

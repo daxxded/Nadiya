@@ -107,6 +107,50 @@ def mom_sprite() -> pygame.Surface:
     return _decode_pattern(pattern, palette, scale=4)
 
 
+@lru_cache(maxsize=4)
+def neighbor_sprite() -> pygame.Surface:
+    palette = {
+        "H": (92, 64, 44, 255),
+        "S": (224, 196, 170, 255),
+        "T": (150, 110, 180, 255),
+        "P": (80, 104, 132, 255),
+        "B": (36, 36, 46, 255),
+    }
+    pattern = [
+        "  HHH  ",
+        " HHHHH ",
+        " HSSSH ",
+        "HSSSSSH",
+        " HSSSH ",
+        "  TTT  ",
+        "  TTT  ",
+        "  PPP  ",
+        "  PPP  ",
+        "  B B  ",
+    ]
+    return _decode_pattern(pattern, palette, scale=4)
+
+
+@lru_cache(maxsize=4)
+def cat_sprite() -> pygame.Surface:
+    palette = {
+        "F": (120, 104, 96, 255),
+        "S": (180, 164, 150, 255),
+        "E": (240, 220, 200, 255),
+    }
+    pattern = [
+        "  FF  ",
+        " FSSF ",
+        "FSSSSF",
+        "FSSSSF",
+        " FSSF ",
+        "  FFF ",
+        " FFF  ",
+        "F F F ",
+    ]
+    return _decode_pattern(pattern, palette, scale=4)
+
+
 def draw_kitchen_background(surface: pygame.Surface) -> None:
     surface.fill((58, 46, 40))
     floor_color = (94, 80, 72)
@@ -150,6 +194,43 @@ def draw_school_background(surface: pygame.Surface) -> None:
     surface.blit(text, (banner.centerx - text.get_width() // 2, banner.centery - text.get_height() // 2))
 
 
+def draw_school_exterior(surface: pygame.Surface) -> None:
+    surface.fill((46, 68, 86))
+    sky = pygame.Rect(0, 0, surface.get_width(), surface.get_height() // 2)
+    pygame.draw.rect(surface, (118, 168, 196), sky)
+    ground = pygame.Rect(0, surface.get_height() // 2, surface.get_width(), surface.get_height() // 2)
+    pygame.draw.rect(surface, (88, 108, 118), ground)
+    building = pygame.Rect(surface.get_width() // 2 - 220, surface.get_height() // 2 - 80, 440, 160)
+    pygame.draw.rect(surface, (164, 120, 130), building)
+    for i in range(6):
+        window = pygame.Rect(building.left + 30 + i * 70, building.top + 30, 48, 52)
+        pygame.draw.rect(surface, (240, 240, 250), window)
+    sign = pygame.Rect(building.centerx - 130, building.top + 110, 260, 28)
+    pygame.draw.rect(surface, (54, 68, 84), sign)
+    font = pygame.font.Font(None, 28)
+    text = font.render("Sprachschule", True, (250, 232, 200))
+    surface.blit(text, (sign.centerx - text.get_width() // 2, sign.centery - text.get_height() // 2))
+
+
+def draw_school_hallway(surface: pygame.Surface) -> None:
+    surface.fill((42, 40, 60))
+    stripe = pygame.Rect(0, surface.get_height() // 2 - 40, surface.get_width(), 80)
+    pygame.draw.rect(surface, (66, 62, 92), stripe)
+    for i in range(8):
+        door = pygame.Rect(80 + i * 120, stripe.top - 60, 70, 120)
+        pygame.draw.rect(surface, (104, 92, 128), door)
+        pygame.draw.rect(surface, (84, 70, 110), door, 6)
+
+
+def draw_school_lobby(surface: pygame.Surface) -> None:
+    surface.fill((48, 46, 70))
+    board = pygame.Rect(surface.get_width() // 2 - 180, 80, 360, 140)
+    pygame.draw.rect(surface, (68, 110, 140), board)
+    font = pygame.font.Font(None, 32)
+    text = font.render("Guten Morgen!", True, (250, 246, 230))
+    surface.blit(text, (board.centerx - text.get_width() // 2, board.centery - text.get_height() // 2))
+
+
 def draw_living_room_background(surface: pygame.Surface) -> None:
     surface.fill((38, 30, 40))
     rug = pygame.Rect(surface.get_width() // 2 - 220, surface.get_height() - 220, 440, 180)
@@ -165,8 +246,13 @@ def draw_living_room_background(surface: pygame.Surface) -> None:
 __all__ = [
     "nadiya_sprite",
     "mom_sprite",
+    "neighbor_sprite",
+    "cat_sprite",
     "classmate_variants",
     "draw_kitchen_background",
     "draw_school_background",
+    "draw_school_exterior",
+    "draw_school_hallway",
+    "draw_school_lobby",
     "draw_living_room_background",
 ]

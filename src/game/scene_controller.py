@@ -13,6 +13,7 @@ from game.scenes.home import HomeScene
 from game.scenes.mom import MomScene
 from game.scenes.school import SchoolScene
 from game.scenes.sleep import SleepScene
+from game.scenes.tram import TramScene
 from game.scenes.transition import TransitionScene
 from game.state import GameState, TimeSegment
 from game.ui.hud import HUD
@@ -32,7 +33,8 @@ class SceneController:
         self._pending_factory: Callable[[], Scene] | None = None
         self.clock = pygame.time.Clock()
         self.state.start_segment(self.state.segment)
-        self._switch_scene(TimeSegment.MORNING)
+        self.active_scene = TramScene(self.state, self.screen, direction="to school", target_segment=TimeSegment.MORNING)
+        self.active_scene.on_enter()
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE and pygame.key.get_mods() & pygame.KMOD_CTRL:
@@ -48,6 +50,18 @@ class SceneController:
             self.transition_scene.handle_event(event)
             return
         if self.active_scene:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.hud.skip_rect:
+                if self.hud.skip_rect.collidepoint(event.pos):
+                    self.state.request_skip()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_p and hasattr(self.active_scene, "toggle_phone"):
+                dialogue = getattr(self.active_scene, "dialogue", None)
+                vending = getattr(self.active_scene, "vending", None)
+                if dialogue and getattr(dialogue, "active", False):
+                    return
+                if vending and getattr(vending, "active", False):
+                    return
+                self.active_scene.toggle_phone()
+                return
             self.active_scene.handle_event(event)
 
     def update(self) -> None:
@@ -64,6 +78,8 @@ class SceneController:
             return
         if self.active_scene:
             self.state.tick_clock(dt)
+            if self.state.consume_skip_request():
+                self.active_scene.skip_to_next()
             self.active_scene.update(dt)
             if self.active_scene.completed:
                 self._advance()
@@ -89,7 +105,13 @@ class SceneController:
             factory = lambda: SleepScene(self.state, self.screen)
             next_segment = TimeSegment.NIGHT
         elif isinstance(self.active_scene, SleepScene):
-            next_segment = self.state.segment
+            next_segment = TimeSegment.MORNING
+            factory = lambda: TramScene(self.state, self.screen, direction="to school", target_segment=TimeSegment.MORNING)
+        elif isinstance(self.active_scene, SchoolScene):
+            next_segment = TimeSegment.AFTERNOON
+            factory = lambda: TramScene(self.state, self.screen, direction="home", target_segment=TimeSegment.AFTERNOON)
+        elif isinstance(self.active_scene, TramScene):
+            next_segment = self.active_scene.target_segment
         else:
             self.state.advance_segment()
             next_segment = self.state.segment
@@ -106,7 +128,7 @@ class SceneController:
             self.active_scene.on_exit()
         self.state.start_segment(segment)
         if segment == TimeSegment.MORNING:
-            self.active_scene = SchoolScene(self.state, self.screen)
+            self.active_scene = SchoolScene(self.state, self.screen, self.ai_client)
         elif segment == TimeSegment.AFTERNOON:
             self.active_scene = HomeScene(
                 self.state, self.screen, self.ai_client, mode="afternoon"

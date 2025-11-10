@@ -12,9 +12,10 @@ from game.config import COLORS, TILE_HEIGHT, TILE_WIDTH
 from game.minigames.fry_minigame import FryMinigameController
 from game.scenes.base import Scene
 from game.state import GameState
+from game.ui.dialogue_overlay import DialogueChoice, DialogueOverlay
 from game.ui.fonts import PixelFont
 from game.ui.phone import PhoneOverlay
-from game.ui.pixel_art import nadiya_sprite
+from game.ui.pixel_art import cat_sprite, mom_sprite, nadiya_sprite, neighbor_sprite
 
 
 @dataclass
@@ -48,6 +49,19 @@ class HomeRoom:
     interactions: List[HomeInteraction]
 
 
+@dataclass
+class HomeNPC:
+    name: str
+    room: str
+    position: pygame.math.Vector2
+    sprite: pygame.Surface
+    ai_persona: Optional[str] = None
+    dialog_lines: Tuple[str, ...] = ()
+    patrol: Tuple[pygame.math.Vector2, pygame.math.Vector2] | None = None
+    speed: float = 0.6
+    direction: int = 1
+
+
 class HomeScene(Scene):
     """Allow the player to wander Nadiya's flat and trigger activities."""
 
@@ -66,6 +80,7 @@ class HomeScene(Scene):
         self.font = PixelFont(base_size=11, scale=2)
         self.small_font = PixelFont(base_size=9, scale=2)
         self.player_sprite = nadiya_sprite()
+        self.mom_sprite = mom_sprite()
         self.player_pos = pygame.math.Vector2(3.5, 3.5)
         self.player_speed = 3.2
         self.rooms = self._build_rooms()
@@ -80,6 +95,9 @@ class HomeScene(Scene):
         self._active_door: Optional[Doorway] = None
         self._active_interaction: Optional[HomeInteraction] = None
         self.phone = PhoneOverlay(state, ai_client, screen)
+        self.dialogue = DialogueOverlay(state, ai_client, screen)
+        self.npcs: List[HomeNPC] = self._build_npcs()
+        self._active_npc: Optional[HomeNPC] = None
 
     def on_enter(self) -> None:
         if self.mode == "afternoon":
@@ -91,6 +109,9 @@ class HomeScene(Scene):
         if self.minigame:
             self.minigame.handle_event(event)
             return
+        if self.dialogue.active:
+            self.dialogue.handle_event(event)
+            return
         if self.phone.active:
             self.phone.handle_event(event)
             return
@@ -98,16 +119,12 @@ class HomeScene(Scene):
             if event.key in (pygame.K_w, pygame.K_UP, pygame.K_s, pygame.K_DOWN, pygame.K_a, pygame.K_LEFT, pygame.K_d, pygame.K_RIGHT):
                 self._input[event.key] = True
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                if self._active_door:
+                if self._active_npc:
+                    self._trigger_npc(self._active_npc)
+                elif self._active_door:
                     self._change_room(self._active_door)
                 elif self._active_interaction:
                     self._trigger_interaction(self._active_interaction)
-            elif event.key == pygame.K_p:
-                if self.phone.active:
-                    self.phone.close()
-                else:
-                    self.phone.open()
-                    self.phone.active_app = "discord"
         elif event.type == pygame.KEYUP and event.key in self._input:
             self._input[event.key] = False
 
@@ -120,11 +137,19 @@ class HomeScene(Scene):
                 self.minigame = None
                 self.completed = True
             return
+        self.dialogue.update(dt)
+        if not self.dialogue.active:
+            new_lines = self.dialogue.consume_summary()
+            if new_lines:
+                self.summary.extend(new_lines)
+        if self.dialogue.active:
+            return
         self.phone.update(dt)
         if self.phone.active:
             return
         self._update_player(dt)
         self._update_proximity()
+        self._update_npcs(dt)
         self._room_fade = max(0.0, self._room_fade - dt * 2.8)
         if self._status_timer > 0:
             self._status_timer -= dt
@@ -141,12 +166,15 @@ class HomeScene(Scene):
     def render(self, surface: pygame.Surface) -> None:
         surface.fill((20, 18, 28))
         self._draw_room(surface, self.current_room)
+        self._draw_npcs(surface)
         self._draw_player(surface)
         self._draw_prompts(surface)
         if self._room_fade > 0:
             fade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
             fade.fill((0, 0, 0, int(self._room_fade * 140)))
             surface.blit(fade, (0, 0))
+        if self.dialogue.active:
+            self.dialogue.render()
         if self.phone.active:
             self.phone.render()
         if self.minigame:
@@ -180,6 +208,7 @@ class HomeScene(Scene):
     def _update_proximity(self) -> None:
         self._active_door = None
         self._active_interaction = None
+        self._active_npc = None
         for door in self.current_room.doors:
             if self.player_pos.distance_to(door.position) <= 0.75:
                 self._active_door = door
@@ -189,6 +218,12 @@ class HomeScene(Scene):
                 continue
             if self.player_pos.distance_to(interaction.position) <= interaction.radius:
                 self._active_interaction = interaction
+                break
+        for npc in self.npcs:
+            if npc.room != self.current_room.key:
+                continue
+            if self.player_pos.distance_to(npc.position) <= 1.0:
+                self._active_npc = npc
                 break
 
     def _change_room(self, door: Doorway) -> None:
@@ -200,6 +235,19 @@ class HomeScene(Scene):
         self._room_fade = 1.0
         self._set_status(f"Entered {target_room.display_name}.")
 
+    def _update_npcs(self, dt: float) -> None:
+        for npc in self.npcs:
+            if not npc.patrol:
+                continue
+            start, end = npc.patrol
+            target = end if npc.direction > 0 else start
+            direction_vec = target - npc.position
+            if direction_vec.length_squared() < 0.05:
+                npc.direction *= -1
+                continue
+            move = direction_vec.normalize() * npc.speed * dt
+            npc.position += move
+
     def _trigger_interaction(self, interaction: HomeInteraction) -> None:
         if interaction.modes and self.mode not in interaction.modes:
             return
@@ -210,6 +258,22 @@ class HomeScene(Scene):
             self.phone.active_app = "discord"
         else:
             self._set_status("Nothing interesting happens.")
+
+    def _trigger_npc(self, npc: HomeNPC) -> None:
+        if npc.ai_persona:
+            self.dialogue.open_ai(
+                npc.name,
+                npc.ai_persona,
+                context_builder=lambda: {
+                    "mood": "high" if self.state.stats.mood > 60 else "low" if self.state.stats.mood < 35 else "neutral",
+                    "relationship": str(int(self.state.relationships.mom)),
+                    "energy": str(int(self.state.stats.energy)),
+                },
+            )
+        elif npc.dialog_lines:
+            self.dialogue.open_info(npc.name, list(npc.dialog_lines))
+        else:
+            self.dialogue.open_info(npc.name, ["They nod politely but stay quiet."])
 
     def _start_fry_minigame(self) -> None:
         self.minigame = FryMinigameController(self.state, self.screen)
@@ -252,6 +316,21 @@ class HomeScene(Scene):
         shadow_rect.midtop = (rect.centerx, rect.bottom - 4)
         surface.blit(shadow, shadow_rect)
 
+    def _draw_npcs(self, surface: pygame.Surface) -> None:
+        for npc in self.npcs:
+            if npc.room != self.current_room.key:
+                continue
+            nx = (npc.position.x - npc.position.y) * TILE_WIDTH // 2 + self.origin[0]
+            ny = (npc.position.x + npc.position.y) * TILE_HEIGHT // 2 + self.origin[1]
+            rect = npc.sprite.get_rect()
+            rect.midbottom = (int(nx), int(ny))
+            surface.blit(npc.sprite, rect)
+            shadow = pygame.Surface((npc.sprite.get_width(), 6), pygame.SRCALPHA)
+            pygame.draw.ellipse(shadow, (0, 0, 0, 90), shadow.get_rect())
+            shadow_rect = shadow.get_rect()
+            shadow_rect.midtop = (rect.centerx, rect.bottom - 4)
+            surface.blit(shadow, shadow_rect)
+
     def _draw_marker(self, surface: pygame.Surface, position: pygame.math.Vector2, color: Tuple[int, int, int]) -> None:
         mx = (position.x - position.y) * TILE_WIDTH // 2 + self.origin[0]
         my = (position.x + position.y) * TILE_HEIGHT // 2 + self.origin[1]
@@ -263,6 +342,8 @@ class HomeScene(Scene):
             prompt_lines.append(f"Enter {self._active_door.label} — Press Enter")
         if self._active_interaction:
             prompt_lines.append(self._active_interaction.prompt)
+        if self._active_npc:
+            prompt_lines.append(f"Talk to {self._active_npc.name} — Press Enter")
         if self._status_message:
             prompt_lines.append(self._status_message)
         if not prompt_lines:
@@ -372,6 +453,39 @@ class HomeScene(Scene):
         )
         return rooms
 
+    def toggle_phone(self) -> None:
+        if self.phone.active:
+            self.phone.close()
+        else:
+            self.phone.open()
+            self.phone.active_app = "discord"
+
+    def _build_npcs(self) -> List[HomeNPC]:
+        mom = HomeNPC(
+            name="Mom",
+            room="living",
+            position=pygame.math.Vector2(3.0, 3.0),
+            sprite=self.mom_sprite,
+            ai_persona="mom",
+            patrol=(pygame.math.Vector2(2.4, 3.0), pygame.math.Vector2(4.6, 3.2)),
+            speed=0.5,
+        )
+        neighbor = HomeNPC(
+            name="Neighbor Vesna",
+            room="hall",
+            position=pygame.math.Vector2(2.2, 2.5),
+            sprite=neighbor_sprite(),
+            dialog_lines=("She's humming an old tune.", "'Need anything, Nadiya?'"),
+        )
+        cat = HomeNPC(
+            name="Apartment Cat",
+            room="bedroom",
+            position=pygame.math.Vector2(4.0, 3.5),
+            sprite=cat_sprite(),
+            dialog_lines=("It blinks slowly at you.", "Maybe it's secretly judging."),
+        )
+        return [mom, neighbor, cat]
+
     def _perimeter_blocks(self, width: int, height: int) -> set[Tuple[int, int]]:
         blocked: set[Tuple[int, int]] = set()
         for x in range(width):
@@ -384,3 +498,4 @@ class HomeScene(Scene):
 
 
 __all__ = ["HomeScene"]
+

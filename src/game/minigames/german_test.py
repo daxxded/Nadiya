@@ -20,12 +20,28 @@ class Question:
     correct_index: int
 
 
-QUESTIONS: List[Question] = [
+EASY_QUESTIONS: List[Question] = [
     Question("Choose the correct article: ___ Kaffee", ["Der", "Die", "Das"], 0),
     Question("Wie sagt man 'tired' auf Deutsch?", ["müde", "kalt", "heiß"], 0),
     Question("Welches Wort passt? Ich ___ Pommes.", ["esst", "esse", "isst"], 1),
-    Question("Ordne: Morgen / zur / ich / Schule / gehe", ["Ich gehe zur Schule morgen", "Morgen gehe ich zur Schule", "Zur Schule gehe ich morgen"], 1),
     Question("Was ist die Mehrzahl von 'Freund'?", ["Freunde", "Freunder", "Freunden"], 0),
+    Question("Wie sagt man 'hello' höflich?", ["Guten Tag", "Gute Nacht", "Auf Wiedersehen"], 0),
+]
+
+MEDIUM_QUESTIONS: List[Question] = [
+    Question("Ordne: Morgen / zur / ich / Schule / gehe", ["Ich gehe zur Schule morgen", "Morgen gehe ich zur Schule", "Zur Schule gehe ich morgen"], 1),
+    Question("Welche Präposition? Ich warte ___ den Bus.", ["für", "auf", "um"], 1),
+    Question("Setz ein: Wir ___ gestern Hausaufgaben.", ["machen", "machten", "gemacht"], 1),
+    Question("Wähle den Plural: die Nachricht → ?", ["die Nachrichten", "die Nachrichtes", "die Nachricht"], 0),
+    Question("Ergänze: Kannst du mir ___ Salz geben?", ["den", "das", "dem"], 1),
+]
+
+HARD_QUESTIONS: List[Question] = [
+    Question("Welche Verbform? Ich habe versucht, früh aufzustehen, aber ich ___ verschlafen.", ["bin", "habe", "werde"], 0),
+    Question("Wähle den richtigen Kasus: Trotz ___ Müdigkeit ging sie zur Schule.", ["die", "der", "den"], 1),
+    Question("Welche Reihenfolge? Gestern / ich / meiner Mutter / geholfen / habe", ["Gestern habe ich meiner Mutter geholfen", "Ich geholfen habe meiner Mutter gestern", "Meiner Mutter habe geholfen gestern ich"], 0),
+    Question("Welche Präposition passt? Er diskutiert ___ seine Freunde über Politik.", ["mit", "über", "bei"], 0),
+    Question("Setz ein: Wenn ich mehr Zeit ___, würde ich mehr lesen.", ["habe", "hätte", "hatte"], 1),
 ]
 
 
@@ -35,7 +51,10 @@ class GermanTestController:
         self.screen = screen
         self.font = pygame.font.Font(None, 36)
         self.small_font = pygame.font.Font(None, 28)
-        self.current_questions = random.sample(QUESTIONS, k=3)
+        difficulty = self._determine_difficulty()
+        pool = self._question_pool(difficulty)
+        count = min(4, len(pool))
+        self.current_questions = random.sample(pool, k=count)
         self.current_index = 0
         self.selected_option = 0
         self.correct_answers = 0
@@ -118,6 +137,30 @@ class GermanTestController:
             self.state.apply_outcome(mood=float(fail_cfg.get("mood", -6.0)))
             self.summary.append("German grammar riot: quiz went sideways.")
             self.state.events.trigger("german_test_flunk")
+
+    def force_finish(self) -> None:
+        if self.completed:
+            return
+        self.completed = True
+        self.feedback_timer = 0.0
+        self._apply_result()
+
+    def _determine_difficulty(self) -> str:
+        base = self.state.stats.german_level
+        offset = (self.state.day - 1) // 2
+        tier = min(3, base + offset)
+        if tier >= 3:
+            return "hard"
+        if tier == 2:
+            return "medium"
+        return "easy"
+
+    def _question_pool(self, difficulty: str) -> List[Question]:
+        if difficulty == "hard":
+            return HARD_QUESTIONS
+        if difficulty == "medium":
+            return MEDIUM_QUESTIONS
+        return EASY_QUESTIONS
 
 
 __all__ = ["GermanTestController"]

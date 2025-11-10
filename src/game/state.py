@@ -40,6 +40,7 @@ class PlayerStats:
     energy: float = 70.0
     german_xp: float = 0.0
     german_level: int = 1
+    money: float = 10.0
 
     def clamp(self) -> None:
         self.mood = float(min(100.0, max(0.0, self.mood)))
@@ -65,6 +66,9 @@ class PlayerStats:
         if new_level != self.german_level:
             self.german_level = new_level
 
+    def adjust_money(self, delta: float) -> None:
+        self.money = float(max(0.0, self.money + delta))
+
 
 @dataclass
 class EventFlags:
@@ -86,6 +90,7 @@ class GameState:
     segment_start_minutes: float = 420.0
     segment_duration_minutes: float = 120.0
     day_minutes: float = 420.0
+    skip_requested: bool = False
 
     def __post_init__(self) -> None:
         self._recalculate_segment(self.segment)
@@ -156,6 +161,15 @@ class GameState:
         self.segment_time = min(self.segment_time + dt, self.segment_duration)
         progress = min(1.0, self.segment_time / self.segment_duration)
         self.day_minutes = self.segment_start_minutes + progress * self.segment_duration_minutes
+
+    def request_skip(self) -> None:
+        self.skip_requested = True
+
+    def consume_skip_request(self) -> bool:
+        if self.skip_requested:
+            self.skip_requested = False
+            return True
+        return False
 
     def _recalculate_segment(self, segment: TimeSegment) -> None:
         segments_cfg = get_balance_section("segments")

@@ -92,7 +92,7 @@ class DiscordApp:
                 self.request_close = True
             return
         if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+            if event.key == pygame.K_ESCAPE:
                 self.request_close = True
             elif event.key in (pygame.K_TAB, pygame.K_q):
                 self._cycle_friend(-1)

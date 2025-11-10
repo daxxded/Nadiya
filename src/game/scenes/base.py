@@ -37,5 +37,14 @@ class Scene:
             lines = [self.__class__.__name__.replace("Scene", "") + " wrapped without drama."]
         return lines
 
+    def skip_to_next(self) -> None:
+        """Fast-forward the scene.
+
+        Scenes with internal phases should override this to advance one step
+        rather than immediately completing.
+        """
+
+        self.completed = True
+
 
 __all__ = ["Scene"]
