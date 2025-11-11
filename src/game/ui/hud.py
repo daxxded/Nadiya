@@ -149,12 +149,15 @@ class HUD:
 
 
 def segment_label(segment: TimeSegment) -> str:
-    return {
+    labels = {
+        TimeSegment.DAWN: "Dawn - Morning Routine",
+        TimeSegment.COMMUTE: "Commute",
         TimeSegment.MORNING: "Morning - School",
         TimeSegment.AFTERNOON: "Afternoon - Home",
         TimeSegment.EVENING: "Evening - Phone",
-        TimeSegment.NIGHT: "Night - Mom"
-    }[segment]
+        TimeSegment.NIGHT: "Night - Mom",
+    }
+    return labels.get(segment, segment.name.title())
 
 
 __all__ = ["HUD"]

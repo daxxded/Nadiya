@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Optional, Sequence
 
+import random
+
 import pygame
 
 from game.ai.local_client import LocalAIClient
@@ -14,6 +16,7 @@ from game.config import COLORS, TILE_HEIGHT, TILE_WIDTH
 from game.minigames.german_test import GermanTestController
 from game.scenes.base import Scene
 from game.state import GameState
+from game.scenes.isometric import iso_to_screen
 from game.ui.dialogue_overlay import DialogueOverlay
 from game.ui.fonts import PixelFont
 from game.ui.phone import PhoneOverlay
@@ -69,17 +72,22 @@ class SchoolScene(Scene):
             Phase.HALLWAY: float(self._phase_cfg.get("hallway_seconds", 300.0)),
             Phase.CLASS: float(self._phase_cfg.get("class_seconds", 900.0)),
         }
-        self.origin = (self.screen.get_width() // 2, 320)
+        self.origin = (0, 0)
+        self.world_surface = pygame.Surface((self.screen.get_width(), self.screen.get_height()), pygame.SRCALPHA)
+        self.camera_rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
         self.npcs: List[SchoolNPC] = []
         self.classmate_sprites = classmate_variants()
         self.summary: List[str] = []
         self._input: dict[int, bool] = {}
         self._map_size = (14, 10)
         self._walls: set[tuple[int, int]] = set()
-        self._background = pygame.Surface(self.screen.get_size())
+        self._background = pygame.Surface(self.world_surface.get_size())
         self.test_controller: Optional[GermanTestController] = None
         self.teacher_lines: List[str] = []
         self.teacher_timer = 0.0
+        self.self_talk_timer = random.uniform(28.0, 52.0)
+        self.self_talk_duration = 0.0
+        self.self_talk_message = ""
         self._prepare_phase(self.phase)
 
     def handle_event(self, event: pygame.event.Event) -> None:
@@ -131,28 +139,33 @@ class SchoolScene(Scene):
             return
         self._update_player(dt)
         self._update_npcs(dt)
+        self._update_self_talk(dt)
         self.phase_elapsed += dt
         self._sync_clock_progress()
         if self.phase_elapsed >= self.phase_durations[self.phase]:
             self._advance_phase()
 
     def render(self, surface: pygame.Surface) -> None:
-        surface.blit(self._background, (0, 0))
+        if self.test_controller:
+            self.test_controller.render()
+            return
+        self.world_surface.blit(self._background, (0, 0))
         if self.phase == Phase.CLASS and self.teacher_timer > 0:
-            surface.blit(self._background, (0, 0))
-            self._draw_grid(surface)
-            self._draw_player(surface)
+            self._draw_grid(self.world_surface)
+            self._draw_player(self.world_surface)
+            camera = self._camera_rect_view()
+            surface.blit(self.world_surface, (0, 0), camera)
             for idx, line in enumerate(self.teacher_lines):
                 text = self.font.render(line, COLORS.text_light)
                 surface.blit(text, (80, 120 + idx * 36))
             return
-        if self.test_controller:
-            self.test_controller.render()
-            return
-        self._draw_grid(surface)
-        self._draw_vending(surface)
-        self._draw_npcs(surface)
-        self._draw_player(surface)
+        self._draw_grid(self.world_surface)
+        self._draw_vending(self.world_surface)
+        self._draw_npcs(self.world_surface)
+        self._draw_player(self.world_surface)
+        self._draw_self_talk(self.world_surface)
+        camera = self._camera_rect_view()
+        surface.blit(self.world_surface, (0, 0), camera)
         self._draw_prompts(surface)
         if self.phone.active:
             self.phone.render()
@@ -194,6 +207,7 @@ class SchoolScene(Scene):
         if phase == Phase.EXTERIOR:
             self._map_size = (18, 12)
             self._walls = set()
+            self._configure_world(self._map_size)
             draw_school_exterior(self._background)
             self.player_pos = pygame.math.Vector2(9.0, 9.0)
             self.npcs = self._build_exterior_npcs()
@@ -201,15 +215,18 @@ class SchoolScene(Scene):
         elif phase == Phase.HALLWAY:
             self._map_size = (22, 6)
             self._walls = {(x, 0) for x in range(self._map_size[0])} | {(x, self._map_size[1] - 1) for x in range(self._map_size[0])}
+            self._configure_world(self._map_size)
             draw_school_hallway(self._background)
             self.player_pos = pygame.math.Vector2(4.0, 3.0)
             self.npcs = self._build_hallway_npcs()
         else:
             self._map_size = (10, 8)
+            self._configure_world(self._map_size)
             draw_school_lobby(self._background)
             self.player_pos = pygame.math.Vector2(5.0, 5.0)
             self.npcs = []
             self._start_class_sequence()
+        self._camera_rect_view()
 
     def _advance_phase(self) -> None:
         current_index = self.phase_order.index(self.phase)
@@ -249,6 +266,7 @@ class SchoolScene(Scene):
         target = self.player_pos + direction * speed * dt
         if self._is_walkable(target):
             self.player_pos = target
+            self._camera_rect_view()
 
     def _update_npcs(self, dt: float) -> None:
         for npc in self.npcs:
@@ -274,8 +292,7 @@ class SchoolScene(Scene):
         width, height = self._map_size
         for y in range(height):
             for x in range(width):
-                cx = (x - y) * TILE_WIDTH // 2 + self.origin[0]
-                cy = (x + y) * TILE_HEIGHT // 2 + self.origin[1]
+                cx, cy = self._project_tile(x, y)
                 points = [
                     (cx, cy - TILE_HEIGHT // 2),
                     (cx + TILE_WIDTH // 2, cy),
@@ -290,8 +307,7 @@ class SchoolScene(Scene):
                 pygame.draw.polygon(surface, COLORS.warm_dark, points, 1)
 
     def _draw_player(self, surface: pygame.Surface) -> None:
-        px = (self.player_pos.x - self.player_pos.y) * TILE_WIDTH // 2 + self.origin[0]
-        py = (self.player_pos.x + self.player_pos.y) * TILE_HEIGHT // 2 + self.origin[1]
+        px, py = self._project_point(self.player_pos)
         rect = self.player_sprite.get_rect()
         rect.midbottom = (int(px), int(py))
         surface.blit(self.player_sprite, rect)
@@ -305,8 +321,7 @@ class SchoolScene(Scene):
         if self.phase != Phase.HALLWAY:
             return
         pos = pygame.math.Vector2(self._map_size[0] - 3, 2.5)
-        vx = (pos.x - pos.y) * TILE_WIDTH // 2 + self.origin[0]
-        vy = (pos.x + pos.y) * TILE_HEIGHT // 2 + self.origin[1]
+        vx, vy = self._project_point(pos)
         box = pygame.Rect(0, 0, 36, 60)
         box.midbottom = (int(vx), int(vy))
         pygame.draw.rect(surface, (120, 98, 140), box, border_radius=8)
@@ -317,8 +332,7 @@ class SchoolScene(Scene):
 
     def _draw_npcs(self, surface: pygame.Surface) -> None:
         for npc in self.npcs:
-            nx = (npc.position.x - npc.position.y) * TILE_WIDTH // 2 + self.origin[0]
-            ny = (npc.position.x + npc.position.y) * TILE_HEIGHT // 2 + self.origin[1]
+            nx, ny = self._project_point(npc.position)
             rect = npc.sprite.get_rect()
             rect.midbottom = (int(nx), int(ny))
             surface.blit(npc.sprite, rect)
@@ -350,6 +364,80 @@ class SchoolScene(Scene):
             panel.blit(text_surface, (x, y))
             y += 32
         surface.blit(panel, (0, surface.get_height() - 160))
+
+    def _configure_world(self, map_size: tuple[int, int]) -> None:
+        width, height = map_size
+        max_x = max(0, width - 1)
+        max_y = max(0, height - 1)
+        corners = [
+            iso_to_screen(0, 0, (0, 0)),
+            iso_to_screen(max_x, 0, (0, 0)),
+            iso_to_screen(0, max_y, (0, 0)),
+            iso_to_screen(max_x, max_y, (0, 0)),
+        ]
+        min_x = min(x for x, _ in corners)
+        max_x = max(x for x, _ in corners)
+        min_y = min(y for _, y in corners)
+        max_y = max(y for _, y in corners)
+        margin_x = TILE_WIDTH * 3
+        margin_y = TILE_HEIGHT * 5
+        world_w = int(max_x - min_x + margin_x * 2)
+        world_h = int(max_y - min_y + margin_y * 2)
+        world_w = max(world_w, self.screen.get_width())
+        world_h = max(world_h, self.screen.get_height())
+        self.origin = (int(-min_x + margin_x), int(-min_y + margin_y))
+        self.world_surface = pygame.Surface((world_w, world_h), pygame.SRCALPHA)
+        self._background = pygame.Surface((world_w, world_h), pygame.SRCALPHA)
+        self.camera_rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
+
+    def _project_point(self, position: pygame.math.Vector2) -> tuple[int, int]:
+        return (
+            int((position.x - position.y) * TILE_WIDTH // 2 + self.origin[0]),
+            int((position.x + position.y) * TILE_HEIGHT // 2 + self.origin[1]),
+        )
+
+    def _project_tile(self, x: int, y: int) -> tuple[int, int]:
+        return (
+            int((x - y) * TILE_WIDTH // 2 + self.origin[0]),
+            int((x + y) * TILE_HEIGHT // 2 + self.origin[1]),
+        )
+
+    def _camera_rect_view(self) -> pygame.Rect:
+        px, py = self._project_point(self.player_pos)
+        rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
+        rect.center = (int(px), int(py) - 60)
+        rect.clamp_ip(self.world_surface.get_rect())
+        self.camera_rect = rect
+        return rect
+
+    def _draw_self_talk(self, surface: pygame.Surface) -> None:
+        if self.self_talk_duration <= 0:
+            return
+        px, py = self._project_point(self.player_pos)
+        text = self.small_font.render(self.self_talk_message, COLORS.text_light)
+        bubble = pygame.Surface((text.get_width() + 18, text.get_height() + 12), pygame.SRCALPHA)
+        pygame.draw.rect(bubble, (246, 240, 228, 220), bubble.get_rect(), border_radius=8)
+        bubble.blit(text, (9, 4))
+        rect = bubble.get_rect()
+        rect.midbottom = (px, py - self.player_sprite.get_height() + 6)
+        surface.blit(bubble, rect)
+
+    def _update_self_talk(self, dt: float) -> None:
+        if self.self_talk_duration > 0:
+            self.self_talk_duration -= dt
+            if self.self_talk_duration <= 0:
+                self.self_talk_message = ""
+        self.self_talk_timer -= dt
+        if self.self_talk_timer <= 0:
+            phrases = [
+                "im hungry",
+                "what if i rp you rn?",
+                "i hate people",
+                "stupid classmates",
+            ]
+            self.self_talk_message = random.choice(phrases)
+            self.self_talk_duration = 3.0
+            self.self_talk_timer = random.uniform(32.0, 56.0)
 
     def _nearby_npc(self) -> Optional[SchoolNPC]:
         for npc in self.npcs:

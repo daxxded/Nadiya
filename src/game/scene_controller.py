@@ -25,6 +25,7 @@ class SceneController:
         self.state = state
         self.screen = screen
         self.ai_client = ai_client
+        pygame.key.set_repeat(280, 45)
         self.hud = HUD(screen)
         self.settings_overlay = SettingsOverlay(state, ai_client, screen)
         self.active_scene: Scene | None = None
@@ -32,8 +33,13 @@ class SceneController:
         self._pending_segment: TimeSegment | None = None
         self._pending_factory: Callable[[], Scene] | None = None
         self.clock = pygame.time.Clock()
-        self.state.start_segment(self.state.segment)
-        self.active_scene = TramScene(self.state, self.screen, direction="to school", target_segment=TimeSegment.MORNING)
+        self.state.start_segment(TimeSegment.DAWN)
+        self.active_scene = HomeScene(
+            self.state,
+            self.screen,
+            self.ai_client,
+            mode="dawn",
+        )
         self.active_scene.on_enter()
 
     def handle_event(self, event: pygame.event.Event) -> None:
@@ -101,14 +107,26 @@ class SceneController:
         summary = self.active_scene.get_summary()
         next_segment = self.state.segment
         factory = None
-        if isinstance(self.active_scene, MomScene):
+        if isinstance(self.active_scene, HomeScene):
+            if self.active_scene.mode == "dawn":
+                next_segment = TimeSegment.COMMUTE
+                factory = lambda: TramScene(
+                    self.state,
+                    self.screen,
+                    direction="to school",
+                    target_segment=TimeSegment.MORNING,
+                )
+            elif self.active_scene.mode == "afternoon":
+                next_segment = TimeSegment.EVENING
+            elif self.active_scene.mode == "evening":
+                next_segment = TimeSegment.NIGHT
+        elif isinstance(self.active_scene, MomScene):
             factory = lambda: SleepScene(self.state, self.screen)
             next_segment = TimeSegment.NIGHT
         elif isinstance(self.active_scene, SleepScene):
-            next_segment = TimeSegment.MORNING
-            factory = lambda: TramScene(self.state, self.screen, direction="to school", target_segment=TimeSegment.MORNING)
+            next_segment = TimeSegment.DAWN
         elif isinstance(self.active_scene, SchoolScene):
-            next_segment = TimeSegment.AFTERNOON
+            next_segment = TimeSegment.COMMUTE
             factory = lambda: TramScene(self.state, self.screen, direction="home", target_segment=TimeSegment.AFTERNOON)
         elif isinstance(self.active_scene, TramScene):
             next_segment = self.active_scene.target_segment
@@ -127,7 +145,21 @@ class SceneController:
         if self.active_scene:
             self.active_scene.on_exit()
         self.state.start_segment(segment)
-        if segment == TimeSegment.MORNING:
+        if segment == TimeSegment.DAWN:
+            self.active_scene = HomeScene(
+                self.state,
+                self.screen,
+                self.ai_client,
+                mode="dawn",
+            )
+        elif segment == TimeSegment.COMMUTE:
+            self.active_scene = TramScene(
+                self.state,
+                self.screen,
+                direction="to school",
+                target_segment=TimeSegment.MORNING,
+            )
+        elif segment == TimeSegment.MORNING:
             self.active_scene = SchoolScene(self.state, self.screen, self.ai_client)
         elif segment == TimeSegment.AFTERNOON:
             self.active_scene = HomeScene(
@@ -146,6 +178,7 @@ class SceneController:
     def _queue_transition(self, summary: list[str], next_segment: TimeSegment, factory: Callable[[], Scene] | None) -> None:
         self._pending_segment = next_segment
         self._pending_factory = factory
+        self.state.start_segment(next_segment)
         self.transition_scene = TransitionScene(
             self.state,
             self.screen,

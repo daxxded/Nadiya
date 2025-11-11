@@ -1,17 +1,29 @@
 {
   "segments": {
+    "dawn": {
+      "base_timer": 120,
+      "clock_start": 400,
+      "clock_end": 450,
+      "mood_bonus_ready": 4,
+      "energy_bonus_shower": 6
+    },
+    "commute": {
+      "base_timer": 12,
+      "clock_start": 450,
+      "clock_end": 495
+    },
     "morning": {
       "energy_cost": 10,
-      "base_timer": 2100,
+      "base_timer": 240,
       "clock_start": 495,
-      "clock_end": 545
+      "clock_end": 555
     },
     "afternoon": {
       "energy_cost": 6,
       "hunger_bonus_success": 15,
       "hunger_penalty_fail": -5,
       "base_timer": 36,
-      "clock_start": 545,
+      "clock_start": 555,
       "clock_end": 705
     },
     "evening": {
@@ -65,9 +77,9 @@
       "mood": -8
     },
     "phases": {
-      "exterior_seconds": 900,
-      "hallway_seconds": 300,
-      "class_seconds": 900
+      "exterior_seconds": 90,
+      "hallway_seconds": 30,
+      "class_seconds": 120
     }
   },
   "vending": {

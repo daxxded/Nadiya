@@ -12,6 +12,8 @@ from game.settings import UserSettings
 
 
 class TimeSegment(Enum):
+    DAWN = auto()
+    COMMUTE = auto()
     MORNING = auto()
     AFTERNOON = auto()
     EVENING = auto()
@@ -79,7 +81,7 @@ class EventFlags:
 @dataclass
 class GameState:
     day: int = 1
-    segment: TimeSegment = TimeSegment.MORNING
+    segment: TimeSegment = TimeSegment.DAWN
     stats: PlayerStats = field(default_factory=PlayerStats)
     relationships: Relationships = field(default_factory=Relationships)
     flags: EventFlags = field(default_factory=EventFlags)
@@ -96,7 +98,14 @@ class GameState:
         self._recalculate_segment(self.segment)
 
     def advance_segment(self) -> None:
-        order = [TimeSegment.MORNING, TimeSegment.AFTERNOON, TimeSegment.EVENING, TimeSegment.NIGHT]
+        order = [
+            TimeSegment.DAWN,
+            TimeSegment.COMMUTE,
+            TimeSegment.MORNING,
+            TimeSegment.AFTERNOON,
+            TimeSegment.EVENING,
+            TimeSegment.NIGHT,
+        ]
         idx = order.index(self.segment)
         if idx == len(order) - 1:
             self.segment = TimeSegment.MORNING

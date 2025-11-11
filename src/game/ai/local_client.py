@@ -8,8 +8,10 @@ extended to call an HTTP endpoint without blocking the main thread.
 from __future__ import annotations
 
 import json
+import os
 import random
 import threading
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional
@@ -36,7 +38,10 @@ class LocalAISettings:
     enabled: bool = False
     endpoint: str = ""
     model: str = ""
+    provider: str = "generic"
     timeout: int = 10
+    api_key_env: str = ""
+    extra_headers: Dict[str, str] = field(default_factory=dict)
     fallback_personas: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -49,7 +54,10 @@ class LocalAISettings:
                 enabled=bool(data.get("enabled", False)),
                 endpoint=str(data.get("endpoint", "")),
                 model=str(data.get("model", "")),
+                provider=str(data.get("provider", "generic")),
                 timeout=int(data.get("timeout", 8)),
+                api_key_env=str(data.get("api_key_env", "")),
+                extra_headers=data.get("extra_headers", {}),
                 fallback_personas=data.get("fallback_personas", {}),
             )
         return cls(fallback_personas={})
@@ -87,6 +95,27 @@ class LocalAIClient:
             callback(response)
 
     def _call_http(self, request: AIRequest) -> Optional[str]:
+        provider = (self.settings.provider or "generic").lower()
+        if provider == "huggingface":
+            return self._call_huggingface(request)
+        if provider == "openrouter":
+            return self._call_openrouter(request)
+        if provider == "koboldcpp":
+            return self._call_kobold(request)
+        return self._call_generic(request)
+
+    def _build_headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        headers.update({k: str(v) for k, v in self.settings.extra_headers.items()})
+        if self.settings.api_key_env:
+            key = os.getenv(self.settings.api_key_env, "")
+            if key:
+                headers.setdefault("Authorization", f"Bearer {key}")
+        return headers
+
+    def _call_generic(self, request: AIRequest) -> Optional[str]:
+        if not self.settings.endpoint:
+            return None
         payload = {
             "model": self.settings.model,
             "prompt": request.prompt,
@@ -99,14 +128,103 @@ class LocalAIClient:
             req = urllib.request.Request(
                 self.settings.endpoint,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=self._build_headers(),
             )
             with urllib.request.urlopen(req, timeout=self.settings.timeout) as resp:
                 body = resp.read().decode("utf-8")
             data = json.loads(body)
-            return str(data.get("response") or data.get("text") or "")
-        except Exception:
+            return str(data.get("response") or data.get("text") or data.get("data") or "")
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
             return None
+
+    def _call_kobold(self, request: AIRequest) -> Optional[str]:
+        endpoint = self.settings.endpoint or "http://localhost:5001/api/v1/generate"
+        payload = {
+            "prompt": request.prompt,
+            "max_length": request.max_tokens,
+            "temperature": request.temperature,
+        }
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=self._build_headers(),
+            )
+            with urllib.request.urlopen(req, timeout=self.settings.timeout) as resp:
+                body = resp.read().decode("utf-8")
+            data = json.loads(body)
+            if isinstance(data, dict):
+                if "results" in data and data["results"]:
+                    return str(data["results"][0].get("text", ""))
+                return str(data.get("text", ""))
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+            return None
+        return None
+
+    def _call_huggingface(self, request: AIRequest) -> Optional[str]:
+        model = self.settings.model or "google/gemma-2b-it"
+        endpoint = self.settings.endpoint or f"https://api-inference.huggingface.co/models/{model}"
+        headers = self._build_headers()
+        payload = {
+            "inputs": request.prompt,
+            "parameters": {
+                "temperature": max(0.01, request.temperature),
+                "max_new_tokens": request.max_tokens,
+                "return_full_text": False,
+            },
+        }
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=self.settings.timeout) as resp:
+                body = resp.read().decode("utf-8")
+            data = json.loads(body)
+            if isinstance(data, list) and data:
+                generated = data[0].get("generated_text")
+                if generated:
+                    return str(generated)
+            if isinstance(data, dict):
+                for key in ("generated_text", "text", "answer"):
+                    if key in data:
+                        return str(data[key])
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+            return None
+        return None
+
+    def _call_openrouter(self, request: AIRequest) -> Optional[str]:
+        endpoint = self.settings.endpoint or "https://openrouter.ai/api/v1/chat/completions"
+        headers = self._build_headers()
+        headers.setdefault("HTTP-Referer", "https://github.com")
+        headers.setdefault("X-Title", "Nadiya Simulator")
+        payload = {
+            "model": self.settings.model or "meta-llama/llama-3.1-8b-instruct",
+            "messages": [
+                {"role": "system", "content": self.settings.fallback_personas.get(request.persona, request.persona)},
+                {"role": "user", "content": request.prompt},
+            ],
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+        }
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=self.settings.timeout) as resp:
+                body = resp.read().decode("utf-8")
+            data = json.loads(body)
+            if isinstance(data, dict):
+                choices = data.get("choices")
+                if choices:
+                    message = choices[0].get("message", {})
+                    return str(message.get("content", ""))
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+            return None
+        return None
 
     def poll_response(self, request_id: int) -> Optional[str]:
         return self.responses.get(request_id)

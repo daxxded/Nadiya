@@ -2,7 +2,7 @@
 
 This repository now contains a playable vertical slice prototype for **Nadiya Simulator**, a compact isometric life-sim that blends chaotic humor, grounded emotional beats, and locally hosted AI-driven dialogue. The original narrative and systems design remains available in [`docs/design.md`](docs/design.md).
 
-The latest update expands both ends of the day: mornings now play out in real time with an explorable school exterior, hallway roam, and escalating German class, while afternoons feature a livelier apartment complete with a roaming mom NPC, door prompts, and a phone you can pop out anywhere for Discord-style chats. A 10-second tram ride bridges every home↔school jump, and the HUD clock doubles as a skip button when you need to fast-forward a segment.
+The latest update stretches the day in both directions. Dawn now unfolds inside Nadiya’s apartment: wake at 06:40, sprint through shower/clothes/bag prep, and only then head out. The camera tracks her across every room and into the new bathroom while floating thought bubbles blurt the intrusive “im hungry”/“i hate people” musings you asked for. After a 10-second tram commute the school exterior, hallway, and classroom phases render on a scrolling isometric canvas with the same self-talk system and a vending machine that finally respects her €10 starting cash. The HUD clock remains clickable when you want to skip the real-time schedule, and all doors and transitions now require an explicit Enter press.
 
 ## Getting Started
 
@@ -31,19 +31,21 @@ Add `--headless` to either command if you need to run in environments without a 
 - **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window or press `Ctrl+Esc` to quit.
 
 ## Gameplay Flow
-Each day is split into the four planned segments plus an end-of-night rest phase:
-1. **Morning – School**: arrive at 8:15, spend 15 real minutes chatting outside with AI and canned classmates, survive a five-minute hallway roam (complete with a vending machine that spends Nadiya’s €10 starting cash), then tackle an increasingly tough German quiz after a short teacher intro. Click the clock skip if you’re ready to jump straight to class.
-2. **Afternoon – Home**: explore Nadiya's enlarged apartment, wander multiple rooms via enterable doors, and start the fry minigame where you dodge oil splashes, juggle timing windows, and feed momentum into her stats. Mom now physically roams the living room and can be approached for AI-driven conversation at any time.
-3. **Evening – Phone**: roam the flat, crack open the in-game phone, and chat with three AI-driven friends on the Discord-style app. Relationship values, mood, and configuration knobs decide whether friends banter back or leave you on read.
-4. **Night – Mom**: branching conversation that stitches scripted beats with local AI (or fallbacks) before sliding into the sleep summary screen.
-5. **Sleep Transition**: fade overlay that tallies the day's events, applies balancing hooks from JSON, and resets the loop.
+Each day now hits every beat from dawn prep to midnight wind-down:
+1. **Dawn – Routine** (06:40 → 07:30): wake in the bedroom, hit the bathroom for a quick shower, pick an outfit, pack the bag, and only then take the hall exit. Skip the checklist and Nadiya refuses to leave.
+2. **Commute – Tram** (07:30 → 08:15): a 10-second tram cutscene advances the clock while you enjoy the skyline.
+3. **Morning – School** (08:15 → 09:15): roam the exterior for 15 real seconds per in-game minute, chat with classmates (AI-enabled ones marked), dodge hallway chaos, grab vending snacks with real money, then sit for a difficulty-scaling German quiz after a short teacher monologue.
+4. **Afternoon – Home**: explore the larger apartment, fry potatoes in the minigame, or interact with the roaming mom NPC for AI-guided conversation.
+5. **Evening – Phone**: open the Discord-inspired phone overlay anywhere in the flat, type freely with `P`, and juggle three friend chats that react to stats and relationship scores.
+6. **Night – Mom**: evening living-room scenes mix scripted beats with AI (or fallback) dialogue before bed.
+7. **Sleep Transition**: fade overlay that tallies the day, applies balance tweaks, and pushes the loop to the next dawn.
 
 Player stats (mood, hunger, energy, German skill, money, and relationships) update in real time and influence modifiers on actions. Segment transitions now include tram cutscenes, respect the real-world clock windows configured in JSON, and the HUD shows a live clock with a clickable skip icon alongside automatic overlap detection that flashes a warning panel if UI elements accidentally collide.
 
 ## Configuration & Data
 
 - `data/balance.json` – tunable numbers for stat deltas, timers, quiz rewards, and event thresholds.
-- `data/ai/settings.json` – toggle local model integration and point at a running Ollama/LM Studio endpoint; defaults to deterministic stubs when disabled.
+- `data/ai/settings.json` – toggle AI integration. Set `"provider"` to `"huggingface"`, `"openrouter"`, `"koboldcpp"`, or `"generic"`, point `"endpoint"` to the free service you prefer, and drop the API key name in `"api_key_env"`. When disabled the dialogue falls back to deterministic canned lines.
 - `data/dialogue/bank.json` – lightweight branching dialogue nodes used to seed scripted beats before AI responses.
 
 Edit these files to rebalance without touching code. The game hot-loads them on boot and caches in memory.

@@ -5,13 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import random
+
 import pygame
 
 from game.ai.local_client import LocalAIClient
+from game.balance import get_balance_section
 from game.config import COLORS, TILE_HEIGHT, TILE_WIDTH
 from game.minigames.fry_minigame import FryMinigameController
 from game.scenes.base import Scene
 from game.state import GameState
+from game.scenes.isometric import iso_to_screen
 from game.ui.dialogue_overlay import DialogueChoice, DialogueOverlay
 from game.ui.fonts import PixelFont
 from game.ui.phone import PhoneOverlay
@@ -85,7 +89,15 @@ class HomeScene(Scene):
         self.player_speed = 3.2
         self.rooms = self._build_rooms()
         self.current_room = self.rooms["hall"]
-        self.origin = (self.screen.get_width() // 2, 320)
+        if mode == "dawn":
+            self.current_room = self.rooms["bedroom"]
+            self.player_pos = pygame.math.Vector2(3.0, 4.2)
+        elif mode == "evening":
+            self.current_room = self.rooms["bedroom"]
+            self.player_pos = pygame.math.Vector2(4.0, 2.2)
+        self.origin = (0, 0)
+        self._world_surface = pygame.Surface((self.screen.get_width(), self.screen.get_height()))
+        self._camera_rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
         self._input: Dict[int, bool] = {}
         self.summary: List[str] = []
         self.minigame: FryMinigameController | None = None
@@ -96,10 +108,17 @@ class HomeScene(Scene):
         self._active_interaction: Optional[HomeInteraction] = None
         self.phone = PhoneOverlay(state, ai_client, screen)
         self.dialogue = DialogueOverlay(state, ai_client, screen)
-        self.npcs: List[HomeNPC] = self._build_npcs()
+        self.npcs: List[HomeNPC] = self._build_npcs(mode)
         self._active_npc: Optional[HomeNPC] = None
+        self.morning_tasks = {"shower": False, "outfit": False, "pack": False}
+        self.self_talk_timer = random.uniform(24.0, 48.0)
+        self.self_talk_duration = 0.0
+        self.self_talk_message = ""
+        self._configure_world(self.current_room)
 
     def on_enter(self) -> None:
+        if self.mode == "dawn":
+            self._set_status("06:40 — shower, clothes, bag, then head out.", duration=4.0)
         if self.mode == "afternoon":
             self._set_status("Find the kitchen and rescue the fries.")
         elif self.mode == "evening":
@@ -150,6 +169,7 @@ class HomeScene(Scene):
         self._update_player(dt)
         self._update_proximity()
         self._update_npcs(dt)
+        self._update_self_talk(dt)
         self._room_fade = max(0.0, self._room_fade - dt * 2.8)
         if self._status_timer > 0:
             self._status_timer -= dt
@@ -164,10 +184,13 @@ class HomeScene(Scene):
             self.completed = True
 
     def render(self, surface: pygame.Surface) -> None:
-        surface.fill((20, 18, 28))
-        self._draw_room(surface, self.current_room)
-        self._draw_npcs(surface)
-        self._draw_player(surface)
+        self._world_surface.fill((20, 18, 28))
+        self._draw_room(self._world_surface, self.current_room)
+        self._draw_npcs(self._world_surface)
+        self._draw_player(self._world_surface)
+        self._draw_self_talk(self._world_surface)
+        camera = self._camera_rect_view()
+        surface.blit(self._world_surface, (0, 0), camera)
         self._draw_prompts(surface)
         if self._room_fade > 0:
             fade = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
@@ -197,6 +220,7 @@ class HomeScene(Scene):
         target = self.player_pos + direction * speed * dt
         if self._is_walkable(target):
             self.player_pos = target
+            self._camera_rect_view()
 
     def _is_walkable(self, target: pygame.math.Vector2) -> bool:
         width, height = self.current_room.size
@@ -234,6 +258,7 @@ class HomeScene(Scene):
         self.player_pos = pygame.math.Vector2(door.spawn)
         self._room_fade = 1.0
         self._set_status(f"Entered {target_room.display_name}.")
+        self._configure_world(target_room)
 
     def _update_npcs(self, dt: float) -> None:
         for npc in self.npcs:
@@ -256,6 +281,46 @@ class HomeScene(Scene):
         elif interaction.action == "phone":
             self.phone.open()
             self.phone.active_app = "discord"
+        elif interaction.action == "shower" and self.mode == "dawn":
+            if not self.morning_tasks["shower"]:
+                self.morning_tasks["shower"] = True
+                bonus = get_balance_section("segments").get("dawn", {}).get("energy_bonus_shower", 4)
+                self.state.stats.apply_energy(float(bonus))
+                self._set_status("Hot shower achieved.")
+                self.summary.append("Took a too-fast shower.")
+            else:
+                self._set_status("Already showered.")
+        elif interaction.action == "outfit" and self.mode == "dawn":
+            if not self.morning_tasks["outfit"]:
+                self.morning_tasks["outfit"] = True
+                self._set_status("Outfit picked: chaotic cozy.")
+                self.summary.append("Pulled an outfit together.")
+            else:
+                self._set_status("Wardrobe already raided.")
+        elif interaction.action == "pack" and self.mode == "dawn":
+            if not self.morning_tasks["pack"]:
+                self.morning_tasks["pack"] = True
+                self._set_status("Bag packed with questionable priorities.")
+                self.summary.append("Stuffed essentials into the backpack.")
+            else:
+                self._set_status("Bag is already packed.")
+        elif interaction.action == "exit" and self.mode == "dawn":
+            if all(self.morning_tasks.values()):
+                mood_bonus = get_balance_section("segments").get("dawn", {}).get("mood_bonus_ready", 2)
+                self.state.stats.apply_mood(float(mood_bonus))
+                self.summary.append("Ready for school despite the morning chaos.")
+                self.completed = True
+            else:
+                todo = [
+                    label
+                    for key, label in (
+                        ("shower", "shower"),
+                        ("outfit", "get dressed"),
+                        ("pack", "pack bag"),
+                    )
+                    if not self.morning_tasks[key]
+                ]
+                self._set_status("Still need to " + ", ".join(todo) + ".", duration=3.0)
         else:
             self._set_status("Nothing interesting happens.")
 
@@ -283,8 +348,7 @@ class HomeScene(Scene):
         width, height = room.size
         for y in range(height):
             for x in range(width):
-                cx = (x - y) * TILE_WIDTH // 2 + self.origin[0]
-                cy = (x + y) * TILE_HEIGHT // 2 + self.origin[1]
+                cx, cy = self._project_tile(x, y)
                 points = [
                     (cx, cy - TILE_HEIGHT // 2),
                     (cx + TILE_WIDTH // 2, cy),
@@ -304,8 +368,7 @@ class HomeScene(Scene):
             self._draw_marker(surface, interaction.position, COLORS.accent_fries)
 
     def _draw_player(self, surface: pygame.Surface) -> None:
-        px = (self.player_pos.x - self.player_pos.y) * TILE_WIDTH // 2 + self.origin[0]
-        py = (self.player_pos.x + self.player_pos.y) * TILE_HEIGHT // 2 + self.origin[1]
+        px, py = self._project_point(self.player_pos)
         sprite = self.player_sprite
         rect = sprite.get_rect()
         rect.midbottom = (int(px), int(py))
@@ -320,8 +383,7 @@ class HomeScene(Scene):
         for npc in self.npcs:
             if npc.room != self.current_room.key:
                 continue
-            nx = (npc.position.x - npc.position.y) * TILE_WIDTH // 2 + self.origin[0]
-            ny = (npc.position.x + npc.position.y) * TILE_HEIGHT // 2 + self.origin[1]
+            nx, ny = self._project_point(npc.position)
             rect = npc.sprite.get_rect()
             rect.midbottom = (int(nx), int(ny))
             surface.blit(npc.sprite, rect)
@@ -332,8 +394,7 @@ class HomeScene(Scene):
             surface.blit(shadow, shadow_rect)
 
     def _draw_marker(self, surface: pygame.Surface, position: pygame.math.Vector2, color: Tuple[int, int, int]) -> None:
-        mx = (position.x - position.y) * TILE_WIDTH // 2 + self.origin[0]
-        my = (position.x + position.y) * TILE_HEIGHT // 2 + self.origin[1]
+        mx, my = self._project_point(position)
         pygame.draw.circle(surface, color, (int(mx), int(my - 14)), 8)
 
     def _draw_prompts(self, surface: pygame.Surface) -> None:
@@ -348,7 +409,7 @@ class HomeScene(Scene):
             prompt_lines.append(self._status_message)
         if not prompt_lines:
             return
-        panel = pygame.Surface((surface.get_width(), 80), pygame.SRCALPHA)
+        panel = pygame.Surface((surface.get_width(), 108), pygame.SRCALPHA)
         panel.fill((0, 0, 0, 0))
         y = 12
         for line in prompt_lines:
@@ -358,7 +419,18 @@ class HomeScene(Scene):
             panel.blit(shadow, (x + 2, y + 2))
             panel.blit(text_surface, (x, y))
             y += 28
-        surface.blit(panel, (0, surface.get_height() - 140))
+        if self.mode == "dawn":
+            checklist = ", ".join(
+                ("✔" if self.morning_tasks[key] else "□") + " " + label
+                for key, label in (
+                    ("shower", "shower"),
+                    ("outfit", "get dressed"),
+                    ("pack", "pack bag"),
+                )
+            )
+            status_text = self.small_font.render("Morning tasks: " + checklist, COLORS.text_light)
+            panel.blit(status_text, (surface.get_width() // 2 - status_text.get_width() // 2, y))
+        surface.blit(panel, (0, surface.get_height() - 160))
 
     def _set_status(self, text: str, duration: float = 2.2) -> None:
         self._status_message = text
@@ -372,6 +444,17 @@ class HomeScene(Scene):
             Doorway("hall_to_kitchen", pygame.math.Vector2(5, 3), "kitchen", pygame.math.Vector2(1.5, 3.0), "Kitchen"),
             Doorway("hall_to_bedroom", pygame.math.Vector2(3, 1), "bedroom", pygame.math.Vector2(3.0, 4.5), "Bedroom"),
             Doorway("hall_to_living", pygame.math.Vector2(3, 5), "living", pygame.math.Vector2(3.0, 1.5), "Living Room"),
+            Doorway("hall_to_bathroom", pygame.math.Vector2(1, 5), "bathroom", pygame.math.Vector2(3.0, 1.5), "Bathroom"),
+        ]
+        hall_interactions = [
+            HomeInteraction(
+                "exit_door",
+                pygame.math.Vector2(6.0, 3.0),
+                0.9,
+                "Leave for school — Press Enter",
+                "exit",
+                modes=("dawn",),
+            )
         ]
         rooms["hall"] = HomeRoom(
             key="hall",
@@ -381,7 +464,7 @@ class HomeScene(Scene):
             accent_color=(62, 54, 78),
             blocked=hall_blocked,
             doors=hall_doors,
-            interactions=[],
+            interactions=hall_interactions,
         )
 
         kitchen_blocked = self._perimeter_blocks(7, 6)
@@ -433,13 +516,29 @@ class HomeScene(Scene):
         ]
         bedroom_interactions = [
             HomeInteraction(
+                "outfit_closet",
+                pygame.math.Vector2(2.0, 2.0),
+                0.9,
+                "Pick outfit — Press Enter",
+                "outfit",
+                modes=("dawn",),
+            ),
+            HomeInteraction(
+                "pack_bag",
+                pygame.math.Vector2(5.5, 3.5),
+                0.9,
+                "Pack bag — Press Enter",
+                "pack",
+                modes=("dawn",),
+            ),
+            HomeInteraction(
                 "phone_desk",
                 pygame.math.Vector2(5.0, 2.0),
                 0.8,
                 "Open phone — Press Enter",
                 "phone",
                 modes=("evening",),
-            )
+            ),
         ]
         rooms["bedroom"] = HomeRoom(
             key="bedroom",
@@ -451,20 +550,48 @@ class HomeScene(Scene):
             doors=bedroom_doors,
             interactions=bedroom_interactions,
         )
+
+        bathroom_blocked = self._perimeter_blocks(5, 5)
+        bathroom_doors = [
+            Doorway("bathroom_to_hall", pygame.math.Vector2(3, 4), "hall", pygame.math.Vector2(1.5, 4.5), "Hallway"),
+        ]
+        bathroom_interactions = [
+            HomeInteraction(
+                "shower_booth",
+                pygame.math.Vector2(3.0, 2.4),
+                0.8,
+                "Quick shower — Press Enter",
+                "shower",
+                modes=("dawn",),
+            )
+        ]
+        rooms["bathroom"] = HomeRoom(
+            key="bathroom",
+            display_name="Bathroom",
+            size=(5, 5),
+            floor_color=(120, 150, 168),
+            accent_color=(88, 120, 138),
+            blocked=bathroom_blocked,
+            doors=bathroom_doors,
+            interactions=bathroom_interactions,
+        )
         return rooms
 
     def toggle_phone(self) -> None:
+        if self.mode == "dawn" and not self.phone.active:
+            self._set_status("No doomscrolling before class.", duration=2.5)
+            return
         if self.phone.active:
             self.phone.close()
         else:
             self.phone.open()
             self.phone.active_app = "discord"
 
-    def _build_npcs(self) -> List[HomeNPC]:
+    def _build_npcs(self, mode: str) -> List[HomeNPC]:
         mom = HomeNPC(
             name="Mom",
-            room="living",
-            position=pygame.math.Vector2(3.0, 3.0),
+            room="living" if mode != "dawn" else "kitchen",
+            position=pygame.math.Vector2(3.0, 3.0) if mode != "dawn" else pygame.math.Vector2(3.4, 2.4),
             sprite=self.mom_sprite,
             ai_persona="mom",
             patrol=(pygame.math.Vector2(2.4, 3.0), pygame.math.Vector2(4.6, 3.2)),
@@ -495,6 +622,79 @@ class HomeScene(Scene):
             blocked.add((0, y))
             blocked.add((width - 1, y))
         return blocked
+
+    def _configure_world(self, room: HomeRoom) -> None:
+        width, height = room.size
+        max_x = max(0, width - 1)
+        max_y = max(0, height - 1)
+        corners = [
+            iso_to_screen(0, 0, (0, 0)),
+            iso_to_screen(max_x, 0, (0, 0)),
+            iso_to_screen(0, max_y, (0, 0)),
+            iso_to_screen(max_x, max_y, (0, 0)),
+        ]
+        min_x = min(x for x, _ in corners)
+        max_x = max(x for x, _ in corners)
+        min_y = min(y for _, y in corners)
+        max_y = max(y for _, y in corners)
+        margin_x = TILE_WIDTH * 2
+        margin_y = TILE_HEIGHT * 4
+        width = int(max_x - min_x + margin_x * 2)
+        height = int(max_y - min_y + margin_y * 2)
+        width = max(width, self.screen.get_width())
+        height = max(height, self.screen.get_height())
+        self.origin = (int(-min_x + margin_x), int(-min_y + margin_y))
+        self._world_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        self._camera_rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
+
+    def _project_point(self, position: pygame.math.Vector2) -> Tuple[int, int]:
+        return (
+            int((position.x - position.y) * TILE_WIDTH // 2 + self.origin[0]),
+            int((position.x + position.y) * TILE_HEIGHT // 2 + self.origin[1]),
+        )
+
+    def _project_tile(self, x: int, y: int) -> Tuple[int, int]:
+        return (
+            int((x - y) * TILE_WIDTH // 2 + self.origin[0]),
+            int((x + y) * TILE_HEIGHT // 2 + self.origin[1]),
+        )
+
+    def _camera_rect_view(self) -> pygame.Rect:
+        px, py = self._project_point(self.player_pos)
+        rect = pygame.Rect(0, 0, self.screen.get_width(), self.screen.get_height())
+        rect.center = (int(px), int(py) - 40)
+        rect.clamp_ip(self._world_surface.get_rect())
+        self._camera_rect = rect
+        return rect
+
+    def _draw_self_talk(self, surface: pygame.Surface) -> None:
+        if self.self_talk_duration <= 0:
+            return
+        px, py = self._project_point(self.player_pos)
+        text = self.small_font.render(self.self_talk_message, COLORS.text_light)
+        bubble = pygame.Surface((text.get_width() + 18, text.get_height() + 12), pygame.SRCALPHA)
+        pygame.draw.rect(bubble, (248, 240, 220, 220), bubble.get_rect(), border_radius=8)
+        bubble.blit(text, (9, 4))
+        rect = bubble.get_rect()
+        rect.midbottom = (px, py - self.player_sprite.get_height() + 8)
+        surface.blit(bubble, rect)
+
+    def _update_self_talk(self, dt: float) -> None:
+        if self.self_talk_duration > 0:
+            self.self_talk_duration -= dt
+            if self.self_talk_duration <= 0:
+                self.self_talk_message = ""
+        self.self_talk_timer -= dt
+        if self.self_talk_timer <= 0:
+            phrases = [
+                "im hungry",
+                "what if i rp you rn?",
+                "i hate people",
+                "stupid classmates",
+            ]
+            self.self_talk_message = random.choice(phrases)
+            self.self_talk_duration = 3.2
+            self.self_talk_timer = random.uniform(26.0, 48.0)
 
 
 __all__ = ["HomeScene"]

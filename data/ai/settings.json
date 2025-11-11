@@ -1,8 +1,11 @@
 {
   "enabled": false,
-  "endpoint": "http://localhost:11434/api/generate",
-  "model": "tiny-local",
-  "timeout": 8,
+  "endpoint": "",
+  "model": "google/gemma-2b-it",
+  "provider": "huggingface",
+  "api_key_env": "HUGGINGFACE_API_TOKEN",
+  "timeout": 12,
+  "extra_headers": {},
   "fallback_personas": {
     "mom": "You are Nadiya's mother. Speak with warmth and weary humor.",
     "friend_zara": "You are Zara, a chaotic supportive friend with memes for everything.",
