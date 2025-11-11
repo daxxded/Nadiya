@@ -247,6 +247,28 @@ class HomeScene(Scene):
         if self.minigame:
             self.minigame.render()
 
+    def get_objectives(self) -> list[str]:
+        lines: list[str] = []
+        if self.mode == "dawn":
+            mapping = [
+                ("shower", "Take a shower in the bathroom"),
+                ("outfit", "Change clothes at the wardrobe"),
+                ("pack", "Grab the bag from the bedroom desk"),
+            ]
+            for key, label in mapping:
+                mark = "✔" if self.morning_tasks.get(key) else "□"
+                lines.append(f"{mark} {label}")
+            lines.append("Press Enter at the front door once you are ready to leave.")
+        elif self.mode == "afternoon":
+            lines.append("Head to the kitchen and start the fryer (Enter).")
+            lines.append("Use snacks or the fridge to recover if hunger is low.")
+            lines.append("Talk to Mom if she's nearby for optional dialogue.")
+        elif self.mode == "evening":
+            lines.append("Open the phone with P to chat on Discord.")
+            lines.append("Wander the flat for extra flavour conversations.")
+            lines.append("When you're done, interact with the bed to rest.")
+        return lines
+
     def _update_player(self, dt: float) -> bool:
         direction = pygame.math.Vector2(0, 0)
         if self._input.get(pygame.K_w) or self._input.get(pygame.K_UP):

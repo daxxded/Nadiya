@@ -28,6 +28,7 @@ Add `--headless` to either command if you need to run in environments without a 
 - **Interact / confirm**: `Space` or `Enter` to use doors, talk to NPCs, or trigger UI selections.
 - **Phone (exploration segments)**: press `P` anywhere outside of menus to open/close the phone; inside the Discord app use arrows or `Q/E` to switch friends, type naturally, `Enter` to send, and `Esc`/`Backspace` to back out of apps.
 - **Dialogues**: `Esc`, `Q`, `X`, or `Tab` will close any open conversation panel once you’re done reading.
+- **Objective overlay**: tap `H` to toggle the “What to do” helper panel if you need a reminder of the current goals.
 - **Skip segment**: click the ⏭ icon next to the HUD clock to jump to the next scheduled beat (useful if you don’t want to wait out the real-time school timings).
 - **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window (Alt+F4) if you really need to exit; the game no longer binds a quit shortcut to `Esc` so dialogue dismissal stays safe.
 
@@ -41,7 +42,7 @@ Each day now hits every beat from dawn prep to midnight wind-down:
 6. **Night – Mom**: evening living-room scenes mix scripted beats with AI (or fallback) dialogue before bed.
 7. **Sleep Transition**: fade overlay that tallies the day, applies balance tweaks, and pushes the loop to the next dawn.
 
-Player stats (mood, hunger, energy, German skill, money, and relationships) update in real time and influence modifiers on actions. Segment transitions now include tram cutscenes, respect the real-world clock windows configured in JSON, and the HUD shows a live clock with a clickable skip icon alongside automatic overlap detection that flashes a warning panel if UI elements accidentally collide.
+Player stats (mood, hunger, energy, German skill, money, and relationships) update in real time and influence modifiers on actions. Segment transitions now include tram cutscenes, respect the real-world clock windows configured in JSON, and the HUD shows a live clock with a clickable skip icon. Press `H` any time you feel lost to reopen the contextual objective list.
 
 ## Configuration & Data
 

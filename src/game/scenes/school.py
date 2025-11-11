@@ -198,7 +198,39 @@ class SchoolScene(Scene):
             self.phone.close()
         else:
             self.phone.open()
-            self.phone.active_app = "discord"
+
+    def get_objectives(self) -> list[str]:
+        if self.test_controller:
+            question_num = self.test_controller.current_index + 1
+            total = len(self.test_controller.current_questions)
+            return [
+                f"German quiz question {question_num} of {total}.",
+                "Use W/S or arrows to pick an answer, Enter to confirm.",
+            ]
+
+        if self.phase == Phase.EXTERIOR:
+            return [
+                "08:15 — Chat with classmates outside the school (Enter).",
+                "Reach the front doors before 08:30 or click the clock to skip.",
+                "Press P to open your phone if you want to text while waiting.",
+            ]
+        if self.phase == Phase.HALLWAY:
+            return [
+                "Navigate the hallway without bumping the drama magnets.",
+                "Press Enter near the vending machine to buy snacks (costs €).",
+                "Talk to highlighted classmates for small mood bonuses.",
+            ]
+        if self.phase == Phase.CLASS:
+            if self.teacher_timer > 0:
+                return [
+                    "Listen to the teacher until the quiz starts.",
+                    "You can take notes in chat with P if you like.",
+                ]
+            return [
+                "Answer the German quiz to boost skill and mood.",
+                "High mood and energy improve your focus window.",
+            ]
+        return []
 
     def _prepare_phase(self, phase: Phase) -> None:
         self.phase = phase

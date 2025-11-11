@@ -43,6 +43,7 @@ class HUD:
         self.hunger_bar = StatusBar("Hunger", COLORS.accent_fries)
         self.energy_bar = StatusBar("Energy", COLORS.accent_cool)
         self.monitor = UIOverlapMonitor()
+        self.show_debug_overlay = False
         self.skip_rect: pygame.Rect | None = None
 
     def render(self, state: GameState) -> None:
@@ -94,7 +95,8 @@ class HUD:
         self.monitor.register(pygame.Rect(money_rect.left - 8, money_rect.top - 6, bubble.get_width(), bubble.get_height()), "money")
 
         self._render_clock(state)
-        self._render_overlap_debug()
+        if self.show_debug_overlay:
+            self._render_overlap_debug()
 
     def _render_clock(self, state: GameState) -> None:
         time_text = self.clock_font.render(state.formatted_clock(), COLORS.text_light)

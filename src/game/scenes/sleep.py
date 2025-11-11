@@ -46,6 +46,12 @@ class SleepScene(Scene):
         surface.blit(text_surface, (surface.get_width() // 2 - text_surface.get_width() // 2, 200))
         surface.blit(dream_surface, (80, 280))
 
+    def get_objectives(self) -> list[str]:
+        return [
+            "Resting — nothing to do but wait a few seconds.",
+            "Tomorrow will start at dawn with a fresh checklist.",
+        ]
+
     def _prepare_rest(self) -> None:
         restore = float(self._sleep_cfg.get("base_restore", 30))
         if self.state.stats.energy < 20:

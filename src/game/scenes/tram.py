@@ -51,5 +51,11 @@ class TramScene(Scene):
         sub = self.font.render(f"Heading {self.direction}", COLORS.accent_ui)
         surface.blit(sub, (tram_rect.centerx - sub.get_width() // 2, tram_rect.bottom - 46))
 
+    def get_objectives(self) -> list[str]:
+        return [
+            "Commute break — enjoy the ride for ten seconds.",
+            "Use this moment to breathe before the next segment.",
+        ]
+
 
 __all__ = ["TramScene"]

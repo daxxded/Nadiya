@@ -29,6 +29,16 @@ class Scene:
     def on_exit(self) -> None:
         """Called before the scene transitions out."""
 
+    def get_objectives(self) -> list[str]:
+        """Return short guidance strings for the help overlay.
+
+        Scenes can override this to expose contextual goals so the player
+        always has a clear idea of what to do next. The default returns an
+        empty list which causes the overlay to stay hidden.
+        """
+
+        return []
+
     def get_summary(self) -> list[str]:
         """Return summary bullet lines for the transition screen."""
 

@@ -79,6 +79,16 @@ class MomScene(Scene):
             warning = self.font.render("AI server offline — using canned lines", COLORS.accent_ui)
             surface.blit(warning, (80, 560))
 
+    def get_objectives(self) -> list[str]:
+        if self.completed:
+            return ["Say goodnight to wrap the day."]
+        lines = ["Use W/S to choose a reply, Enter to speak."]
+        if self.waiting_for_ai:
+            lines.append("Mom is generating a response — give her a second.")
+        else:
+            lines.append("Pick how honest you feel tonight.")
+        return lines
+
     def _draw_characters(self, surface: pygame.Surface) -> None:
         mom_rect = self.mom_sprite.get_rect()
         mom_rect.bottomleft = (120, surface.get_height() - 80)
