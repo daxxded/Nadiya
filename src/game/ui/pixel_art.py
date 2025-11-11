@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 import pygame
 
-from game.config import COLORS
+from game.config import COLORS, TILE_HEIGHT, TILE_WIDTH
 
 Color = Tuple[int, int, int, int] | Tuple[int, int, int]
 
@@ -30,7 +30,51 @@ def _decode_pattern(pattern: Iterable[str], palette: Dict[str, Color], scale: in
 
 
 @lru_cache(maxsize=16)
-def nadiya_sprite() -> pygame.Surface:
+@lru_cache(maxsize=32)
+def _iso_block_surface(
+    width_tiles: int,
+    depth_tiles: int,
+    height_px: int,
+    *,
+    top: Color,
+    left: Color,
+    right: Color,
+    outline: Color = (40, 32, 32, 200),
+) -> pygame.Surface:
+    width = width_tiles * TILE_WIDTH
+    depth = depth_tiles * TILE_HEIGHT
+    surface = pygame.Surface((width, depth + height_px), pygame.SRCALPHA)
+    cx = width // 2
+    half_depth = depth // 2
+    top_poly = [
+        (cx, 0),
+        (width, half_depth),
+        (cx, depth),
+        (0, half_depth),
+    ]
+    left_poly = [
+        (0, half_depth),
+        (cx, depth),
+        (cx, depth + height_px),
+        (0, half_depth + height_px),
+    ]
+    right_poly = [
+        (width, half_depth),
+        (cx, depth),
+        (cx, depth + height_px),
+        (width, half_depth + height_px),
+    ]
+    pygame.draw.polygon(surface, left, left_poly)
+    pygame.draw.polygon(surface, right, right_poly)
+    pygame.draw.polygon(surface, top, top_poly)
+    pygame.draw.lines(surface, outline, True, top_poly, 2)
+    pygame.draw.lines(surface, outline, False, [left_poly[0], left_poly[1], left_poly[2], left_poly[3]], 2)
+    pygame.draw.lines(surface, outline, False, [right_poly[0], right_poly[1], right_poly[2], right_poly[3]], 2)
+    return surface
+
+
+@lru_cache(maxsize=16)
+def nadiya_idle_sprite() -> pygame.Surface:
     palette = {
         "H": (78, 54, 39, 255),  # hair
         "S": (241, 211, 187, 255),  # skin
@@ -56,6 +100,118 @@ def nadiya_sprite() -> pygame.Surface:
         " BB  BB ",
     ]
     return _decode_pattern(pattern, palette, scale=4)
+
+
+@lru_cache(maxsize=4)
+def nadiya_walk_cycle() -> Sequence[pygame.Surface]:
+    palette = {
+        "H": (78, 54, 39, 255),
+        "S": (241, 211, 187, 255),
+        "T": (117, 171, 204, 255),
+        "J": (54, 72, 99, 255),
+        "B": (33, 33, 46, 255),
+        "C": (255, 178, 62, 255),
+    }
+    frames = [
+        [
+            "   HH   ",
+            "  HHHH  ",
+            " HHHHHH ",
+            " HSSSSH ",
+            "HSSSSSSH",
+            "HSSSSSSH",
+            " HSSSSH ",
+            "  TTTT  ",
+            "  TTTT  ",
+            "  TCC T ",
+            "  JJJJ  ",
+            "  J JJ  ",
+            " JJ  JJ ",
+            " BB  BB ",
+        ],
+        [
+            "   HH   ",
+            "  HHHH  ",
+            " HHHHHH ",
+            " HSSSSH ",
+            "HSSSSSSH",
+            "HSSSSSSH",
+            " HSSSSH ",
+            "  TTTT  ",
+            "  TTTT  ",
+            "  TCC T ",
+            "  JJJJ  ",
+            "  JJ J  ",
+            " JJ  JJ ",
+            " BB  BB ",
+        ],
+        [
+            "   HH   ",
+            "  HHHH  ",
+            " HHHHHH ",
+            " HSSSSH ",
+            "HSSSSSSH",
+            "HSSSSSSH",
+            " HSSSSH ",
+            "  TTTT  ",
+            "  TTTT  ",
+            "  TCC T ",
+            "  JJJJ  ",
+            "  JJJJ  ",
+            " JJ  JJ ",
+            " BB  BB ",
+        ],
+        [
+            "   HH   ",
+            "  HHHH  ",
+            " HHHHHH ",
+            " HSSSSH ",
+            "HSSSSSSH",
+            "HSSSSSSH",
+            " HSSSSH ",
+            "  TTTT  ",
+            "  TTTT  ",
+            "  TCC T ",
+            "  JJJJ  ",
+            "  JJ JJ ",
+            " JJ  JJ ",
+            " BB  BB ",
+        ],
+    ]
+    return tuple(_decode_pattern(pattern, palette, scale=4) for pattern in frames)
+
+
+@lru_cache(maxsize=4)
+def nadiya_eat_sprite() -> pygame.Surface:
+    palette = {
+        "H": (78, 54, 39, 255),
+        "S": (241, 211, 187, 255),
+        "T": (117, 171, 204, 255),
+        "J": (54, 72, 99, 255),
+        "B": (33, 33, 46, 255),
+        "F": (255, 198, 64, 255),
+    }
+    pattern = [
+        "   HH   ",
+        "  HHHH  ",
+        " HHHHHH ",
+        " HSSSSH ",
+        "HSSFFSSH",
+        "HSSFFSSH",
+        " HSSSSH ",
+        "  TTTT  ",
+        "  TTTT  ",
+        "  TTTT  ",
+        "  JJJJ  ",
+        "  JJJJ  ",
+        " JJ  JJ ",
+        " BB  BB ",
+    ]
+    return _decode_pattern(pattern, palette, scale=4)
+
+
+def nadiya_sprite() -> pygame.Surface:
+    return nadiya_idle_sprite()
 
 
 def classmate_variants() -> List[pygame.Surface]:
@@ -149,6 +305,223 @@ def cat_sprite() -> pygame.Surface:
         "F F F ",
     ]
     return _decode_pattern(pattern, palette, scale=4)
+
+
+@lru_cache(maxsize=8)
+def plant_sprite() -> pygame.Surface:
+    surface = pygame.Surface((96, 120), pygame.SRCALPHA)
+    pot = _iso_block_surface(
+        1,
+        1,
+        22,
+        top=(150, 98, 70, 255),
+        left=(120, 72, 50, 255),
+        right=(176, 130, 90, 255),
+    )
+    surface.blit(pot, (16, 50))
+    pygame.draw.circle(surface, (74, 132, 94, 255), (48, 38), 24)
+    pygame.draw.circle(surface, (64, 112, 80, 255), (30, 42), 16)
+    pygame.draw.circle(surface, (64, 112, 80, 255), (62, 48), 18)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def sofa_sprite() -> pygame.Surface:
+    base = _iso_block_surface(
+        2,
+        1,
+        36,
+        top=(132, 88, 112, 255),
+        left=(104, 68, 90, 255),
+        right=(156, 120, 148, 255),
+    )
+    surface = pygame.Surface((base.get_width(), base.get_height() + 20), pygame.SRCALPHA)
+    surface.blit(base, (0, 20))
+    back = _iso_block_surface(
+        2,
+        1,
+        56,
+        top=(144, 96, 124, 255),
+        left=(116, 76, 96, 255),
+        right=(170, 132, 160, 255),
+    )
+    surface.blit(back, (0, 0))
+    return surface
+
+
+@lru_cache(maxsize=8)
+def coffee_table_sprite() -> pygame.Surface:
+    return _iso_block_surface(
+        1,
+        1,
+        18,
+        top=(168, 140, 116, 255),
+        left=(128, 100, 80, 255),
+        right=(188, 160, 132, 255),
+    )
+
+
+@lru_cache(maxsize=8)
+def tv_stand_sprite() -> pygame.Surface:
+    stand = _iso_block_surface(
+        1,
+        1,
+        28,
+        top=(82, 68, 72, 255),
+        left=(58, 48, 52, 255),
+        right=(102, 88, 92, 255),
+    )
+    surface = pygame.Surface((stand.get_width(), stand.get_height() + 36), pygame.SRCALPHA)
+    surface.blit(stand, (0, 36))
+    screen_rect = pygame.Rect(28, 8, stand.get_width() - 56, 40)
+    pygame.draw.rect(surface, (24, 24, 32, 255), screen_rect)
+    pygame.draw.rect(surface, (46, 56, 96, 255), screen_rect, 3)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def bookshelf_sprite() -> pygame.Surface:
+    body = _iso_block_surface(
+        1,
+        1,
+        72,
+        top=(176, 142, 108, 255),
+        left=(142, 108, 78, 255),
+        right=(196, 164, 134, 255),
+    )
+    surface = pygame.Surface((body.get_width(), body.get_height()), pygame.SRCALPHA)
+    surface.blit(body, (0, 0))
+    for idx in range(3):
+        shelf_y = 18 + idx * 24
+        pygame.draw.line(surface, (128, 96, 66, 255), (20, shelf_y), (surface.get_width() - 20, shelf_y), 3)
+    for column, color in enumerate([(216, 112, 120, 255), (108, 176, 128, 255), (96, 132, 204, 255)]):
+        rect = pygame.Rect(34 + column * 18, 24, 14, 42)
+        pygame.draw.rect(surface, color, rect)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def bed_sprite() -> pygame.Surface:
+    frame = _iso_block_surface(
+        2,
+        2,
+        36,
+        top=(192, 180, 180, 255),
+        left=(162, 140, 140, 255),
+        right=(214, 198, 198, 255),
+    )
+    surface = pygame.Surface((frame.get_width(), frame.get_height() + 30), pygame.SRCALPHA)
+    surface.blit(frame, (0, 30))
+    headboard = _iso_block_surface(
+        2,
+        1,
+        48,
+        top=(150, 120, 130, 255),
+        left=(120, 92, 102, 255),
+        right=(176, 148, 158, 255),
+    )
+    surface.blit(headboard, (0, 0))
+    pillow = pygame.Surface((64, 32), pygame.SRCALPHA)
+    pygame.draw.ellipse(pillow, (248, 242, 236, 255), pillow.get_rect())
+    surface.blit(pillow, (40, 50))
+    surface.blit(pillow, (110, 56))
+    return surface
+
+
+@lru_cache(maxsize=8)
+def wardrobe_sprite() -> pygame.Surface:
+    return _iso_block_surface(
+        1,
+        1,
+        82,
+        top=(156, 132, 118, 255),
+        left=(128, 102, 88, 255),
+        right=(176, 152, 138, 255),
+    )
+
+
+@lru_cache(maxsize=8)
+def desk_sprite() -> pygame.Surface:
+    return _iso_block_surface(
+        1,
+        1,
+        30,
+        top=(168, 150, 126, 255),
+        left=(130, 112, 94, 255),
+        right=(192, 168, 140, 255),
+    )
+
+
+@lru_cache(maxsize=8)
+def shower_sprite() -> pygame.Surface:
+    cab = _iso_block_surface(
+        1,
+        1,
+        82,
+        top=(190, 210, 220, 180),
+        left=(150, 180, 200, 160),
+        right=(208, 230, 240, 180),
+    )
+    surface = pygame.Surface((cab.get_width(), cab.get_height()), pygame.SRCALPHA)
+    surface.blit(cab, (0, 0))
+    pygame.draw.line(surface, (200, 200, 220, 255), (surface.get_width() // 2, 20), (surface.get_width() // 2, 96), 3)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def sink_sprite() -> pygame.Surface:
+    base = _iso_block_surface(
+        1,
+        1,
+        24,
+        top=(214, 214, 220, 255),
+        left=(180, 180, 190, 255),
+        right=(238, 238, 246, 255),
+    )
+    surface = pygame.Surface((base.get_width(), base.get_height()), pygame.SRCALPHA)
+    surface.blit(base, (0, 0))
+    pygame.draw.circle(surface, (180, 190, 200, 255), (surface.get_width() // 2, 26), 18, 3)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def fridge_sprite() -> pygame.Surface:
+    return _iso_block_surface(
+        1,
+        1,
+        84,
+        top=(224, 232, 236, 255),
+        left=(192, 202, 210, 255),
+        right=(242, 248, 252, 255),
+    )
+
+
+@lru_cache(maxsize=8)
+def stove_sprite() -> pygame.Surface:
+    block = _iso_block_surface(
+        1,
+        1,
+        44,
+        top=(112, 112, 116, 255),
+        left=(80, 80, 86, 255),
+        right=(136, 136, 140, 255),
+    )
+    surface = pygame.Surface((block.get_width(), block.get_height()), pygame.SRCALPHA)
+    surface.blit(block, (0, 0))
+    pygame.draw.circle(surface, (200, 48, 48, 255), (surface.get_width() // 2, 24), 10, 2)
+    return surface
+
+
+@lru_cache(maxsize=8)
+def counter_sprite() -> pygame.Surface:
+    return _iso_block_surface(
+        2,
+        1,
+        28,
+        top=(188, 166, 142, 255),
+        left=(148, 124, 104, 255),
+        right=(210, 188, 164, 255),
+    )
 
 
 def draw_kitchen_background(surface: pygame.Surface) -> None:
@@ -245,9 +618,25 @@ def draw_living_room_background(surface: pygame.Surface) -> None:
 
 __all__ = [
     "nadiya_sprite",
+    "nadiya_idle_sprite",
+    "nadiya_walk_cycle",
+    "nadiya_eat_sprite",
     "mom_sprite",
     "neighbor_sprite",
     "cat_sprite",
+    "plant_sprite",
+    "sofa_sprite",
+    "coffee_table_sprite",
+    "tv_stand_sprite",
+    "bookshelf_sprite",
+    "bed_sprite",
+    "wardrobe_sprite",
+    "desk_sprite",
+    "shower_sprite",
+    "sink_sprite",
+    "fridge_sprite",
+    "stove_sprite",
+    "counter_sprite",
     "classmate_variants",
     "draw_kitchen_background",
     "draw_school_background",

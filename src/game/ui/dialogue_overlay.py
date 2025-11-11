@@ -80,7 +80,7 @@ class DialogueOverlay:
         if not self.active:
             return
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
+            if event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_x, pygame.K_TAB):
                 self.close()
                 return
             if self.mode == "info":

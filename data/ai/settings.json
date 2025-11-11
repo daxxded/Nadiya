@@ -1,8 +1,8 @@
 {
   "enabled": false,
   "endpoint": "",
-  "model": "google/gemma-2b-it",
-  "provider": "huggingface",
+  "model": "gpt-4o-mini",
+  "provider": "pollinations",
   "api_key_env": "HUGGINGFACE_API_TOKEN",
   "timeout": 12,
   "extra_headers": {},

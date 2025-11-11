@@ -2,7 +2,7 @@
 
 This repository now contains a playable vertical slice prototype for **Nadiya Simulator**, a compact isometric life-sim that blends chaotic humor, grounded emotional beats, and locally hosted AI-driven dialogue. The original narrative and systems design remains available in [`docs/design.md`](docs/design.md).
 
-The latest update stretches the day in both directions. Dawn now unfolds inside Nadiya’s apartment: wake at 06:40, sprint through shower/clothes/bag prep, and only then head out. The camera tracks her across every room and into the new bathroom while floating thought bubbles blurt the intrusive “im hungry”/“i hate people” musings you asked for. After a 10-second tram commute the school exterior, hallway, and classroom phases render on a scrolling isometric canvas with the same self-talk system and a vending machine that finally respects her €10 starting cash. The HUD clock remains clickable when you want to skip the real-time schedule, and all doors and transitions now require an explicit Enter press.
+The latest update stretches the day in both directions. Dawn now unfolds inside Nadiya’s apartment: wake at 06:40, sprint through shower/clothes/bag prep, and only then head out. The camera tracks her across every room and into the new bathroom while floating thought bubbles blurt the intrusive “im hungry”/“i hate people” musings you asked for. After a 10-second tram commute the school exterior, hallway, and classroom phases render on a scrolling isometric canvas with the same self-talk system and a vending machine that finally respects her €10 starting cash. The HUD clock remains clickable when you want to skip the real-time schedule, and all doors and transitions now require an explicit Enter press. Home itself was furnished with isometric couches, plants, wardrobes, and kitchen counters; Nadiya now swaps between walk cycles and an eating pose when she raids the counter snack stash.
 
 ## Getting Started
 
@@ -27,8 +27,9 @@ Add `--headless` to either command if you need to run in environments without a 
 - **Movement (school & home)**: `WASD` or arrow keys for free gliding.
 - **Interact / confirm**: `Space` or `Enter` to use doors, talk to NPCs, or trigger UI selections.
 - **Phone (exploration segments)**: press `P` anywhere outside of menus to open/close the phone; inside the Discord app use arrows or `Q/E` to switch friends, type naturally, `Enter` to send, and `Esc`/`Backspace` to back out of apps.
+- **Dialogues**: `Esc`, `Q`, `X`, or `Tab` will close any open conversation panel once you’re done reading.
 - **Skip segment**: click the ⏭ icon next to the HUD clock to jump to the next scheduled beat (useful if you don’t want to wait out the real-time school timings).
-- **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window or press `Ctrl+Esc` to quit.
+- **Pause / Settings**: `Esc` toggles the overlay (adjust audio, text speed, and AI usage). Close the window (Alt+F4) if you really need to exit; the game no longer binds a quit shortcut to `Esc` so dialogue dismissal stays safe.
 
 ## Gameplay Flow
 Each day now hits every beat from dawn prep to midnight wind-down:
@@ -44,8 +45,8 @@ Player stats (mood, hunger, energy, German skill, money, and relationships) upda
 
 ## Configuration & Data
 
-- `data/balance.json` – tunable numbers for stat deltas, timers, quiz rewards, and event thresholds.
-- `data/ai/settings.json` – toggle AI integration. Set `"provider"` to `"huggingface"`, `"openrouter"`, `"koboldcpp"`, or `"generic"`, point `"endpoint"` to the free service you prefer, and drop the API key name in `"api_key_env"`. When disabled the dialogue falls back to deterministic canned lines.
+- `data/balance.json` – tunable numbers for stat deltas, timers, quiz rewards, the new `"home"` snack bonuses, and event thresholds.
+- `data/ai/settings.json` – toggle AI integration. Set `"provider"` to `"pollinations"`, `"huggingface"`, `"openrouter"`, `"koboldcpp"`, or `"generic"`, point `"endpoint"` to the free service you prefer, and drop the API key name in `"api_key_env"`. When disabled the dialogue falls back to deterministic canned lines.
 - `data/dialogue/bank.json` – lightweight branching dialogue nodes used to seed scripted beats before AI responses.
 
 Edit these files to rebalance without touching code. The game hot-loads them on boot and caches in memory.

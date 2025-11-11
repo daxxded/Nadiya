@@ -43,13 +43,18 @@ class SceneController:
         self.active_scene.on_enter()
 
     def handle_event(self, event: pygame.event.Event) -> None:
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE and pygame.key.get_mods() & pygame.KMOD_CTRL:
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
-            return
         if self.settings_overlay.active:
             self.settings_overlay.handle_event(event)
             return
+        dialogue = getattr(self.active_scene, "dialogue", None)
+        if dialogue and getattr(dialogue, "active", False):
+            dialogue.handle_event(event)
+            return
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            phone = getattr(self.active_scene, "phone", None)
+            if phone and getattr(phone, "active", False):
+                phone.handle_event(event)
+                return
             self.settings_overlay.toggle()
             return
         if self.transition_scene:

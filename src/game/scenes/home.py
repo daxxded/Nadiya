@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import random
@@ -19,7 +19,26 @@ from game.scenes.isometric import iso_to_screen
 from game.ui.dialogue_overlay import DialogueChoice, DialogueOverlay
 from game.ui.fonts import PixelFont
 from game.ui.phone import PhoneOverlay
-from game.ui.pixel_art import cat_sprite, mom_sprite, nadiya_sprite, neighbor_sprite
+from game.ui.pixel_art import (
+    bed_sprite,
+    cat_sprite,
+    coffee_table_sprite,
+    counter_sprite,
+    desk_sprite,
+    fridge_sprite,
+    mom_sprite,
+    nadiya_eat_sprite,
+    nadiya_idle_sprite,
+    nadiya_walk_cycle,
+    neighbor_sprite,
+    plant_sprite,
+    shower_sprite,
+    sink_sprite,
+    sofa_sprite,
+    stove_sprite,
+    tv_stand_sprite,
+    wardrobe_sprite,
+)
 
 
 @dataclass
@@ -42,6 +61,14 @@ class HomeInteraction:
 
 
 @dataclass
+class HomeDecor:
+    sprite: pygame.Surface
+    position: pygame.math.Vector2
+    anchor: str = "midbottom"
+    pixel_offset: pygame.math.Vector2 = field(default_factory=lambda: pygame.math.Vector2(0, 0))
+
+
+@dataclass
 class HomeRoom:
     key: str
     display_name: str
@@ -51,6 +78,7 @@ class HomeRoom:
     blocked: set[Tuple[int, int]]
     doors: List[Doorway]
     interactions: List[HomeInteraction]
+    decor: List[HomeDecor]
 
 
 @dataclass
@@ -83,7 +111,15 @@ class HomeScene(Scene):
         self.mode = mode
         self.font = PixelFont(base_size=11, scale=2)
         self.small_font = PixelFont(base_size=9, scale=2)
-        self.player_sprite = nadiya_sprite()
+        self.idle_sprite = nadiya_idle_sprite()
+        self.walk_cycle = list(nadiya_walk_cycle())
+        self.eat_sprite = nadiya_eat_sprite()
+        self.player_sprite = self.idle_sprite
+        self.walk_timer = 0.0
+        self.walk_frame = 0
+        self.is_moving = False
+        self.eat_timer = 0.0
+        self.snack_cooldown = 0.0
         self.mom_sprite = mom_sprite()
         self.player_pos = pygame.math.Vector2(3.5, 3.5)
         self.player_speed = 3.2
@@ -149,6 +185,7 @@ class HomeScene(Scene):
 
     def update(self, dt: float) -> None:
         if self.minigame:
+            self.is_moving = False
             self.minigame.update(dt)
             if self.minigame.completed:
                 if not self.summary:
@@ -162,11 +199,17 @@ class HomeScene(Scene):
             if new_lines:
                 self.summary.extend(new_lines)
         if self.dialogue.active:
+            self.is_moving = False
             return
         self.phone.update(dt)
         if self.phone.active:
+            self.is_moving = False
             return
-        self._update_player(dt)
+        self.is_moving = self._update_player(dt)
+        if self.eat_timer > 0:
+            self.eat_timer = max(0.0, self.eat_timer - dt)
+        if self.snack_cooldown > 0:
+            self.snack_cooldown = max(0.0, self.snack_cooldown - dt)
         self._update_proximity()
         self._update_npcs(dt)
         self._update_self_talk(dt)
@@ -186,6 +229,7 @@ class HomeScene(Scene):
     def render(self, surface: pygame.Surface) -> None:
         self._world_surface.fill((20, 18, 28))
         self._draw_room(self._world_surface, self.current_room)
+        self._draw_highlights(self._world_surface)
         self._draw_npcs(self._world_surface)
         self._draw_player(self._world_surface)
         self._draw_self_talk(self._world_surface)
@@ -203,7 +247,7 @@ class HomeScene(Scene):
         if self.minigame:
             self.minigame.render()
 
-    def _update_player(self, dt: float) -> None:
+    def _update_player(self, dt: float) -> bool:
         direction = pygame.math.Vector2(0, 0)
         if self._input.get(pygame.K_w) or self._input.get(pygame.K_UP):
             direction += pygame.math.Vector2(0, -1)
@@ -214,13 +258,23 @@ class HomeScene(Scene):
         if self._input.get(pygame.K_d) or self._input.get(pygame.K_RIGHT):
             direction += pygame.math.Vector2(1, 0)
         if direction.length_squared() == 0:
-            return
+            self.walk_timer = 0.0
+            self.walk_frame = 0
+            return False
         direction = direction.normalize()
         speed = self.player_speed * self.state.fatigue_modifier()
         target = self.player_pos + direction * speed * dt
         if self._is_walkable(target):
             self.player_pos = target
             self._camera_rect_view()
+            self.walk_timer += dt
+            if self.walk_timer >= 0.12:
+                self.walk_frame = (self.walk_frame + 1) % max(1, len(self.walk_cycle))
+                self.walk_timer = 0.0
+            return True
+        self.walk_timer = 0.0
+        self.walk_frame = 0
+        return False
 
     def _is_walkable(self, target: pygame.math.Vector2) -> bool:
         width, height = self.current_room.size
@@ -304,6 +358,21 @@ class HomeScene(Scene):
                 self.summary.append("Stuffed essentials into the backpack.")
             else:
                 self._set_status("Bag is already packed.")
+        elif interaction.action == "snack":
+            if self.snack_cooldown > 0:
+                self._set_status("Give it a moment before raiding the counter again.")
+                return
+            home_cfg = get_balance_section("home")
+            hunger_gain = float(home_cfg.get("snack_hunger", 6))
+            mood_gain = float(home_cfg.get("snack_mood", 1))
+            cooldown = float(home_cfg.get("snack_cooldown", 18))
+            self.state.stats.apply_hunger(hunger_gain)
+            if mood_gain:
+                self.state.stats.apply_mood(mood_gain)
+            self.eat_timer = 1.6
+            self.snack_cooldown = cooldown
+            self._set_status("Counter snack inhaled.")
+            self.summary.append("Snagged a counter snack to stay upright.")
         elif interaction.action == "exit" and self.mode == "dawn":
             if all(self.morning_tasks.values()):
                 mood_bonus = get_balance_section("segments").get("dawn", {}).get("mood_bonus_ready", 2)
@@ -360,16 +429,17 @@ class HomeScene(Scene):
                     color = room.accent_color
                 pygame.draw.polygon(surface, color, points)
                 pygame.draw.polygon(surface, COLORS.warm_dark, points, 1)
-        for door in room.doors:
-            self._draw_marker(surface, door.position, COLORS.accent_ui)
-        for interaction in room.interactions:
-            if interaction.modes and self.mode not in interaction.modes:
-                continue
-            self._draw_marker(surface, interaction.position, COLORS.accent_fries)
+        self._draw_decor(surface, room)
 
     def _draw_player(self, surface: pygame.Surface) -> None:
         px, py = self._project_point(self.player_pos)
-        sprite = self.player_sprite
+        if self.eat_timer > 0:
+            sprite = self.eat_sprite
+        elif self.is_moving and self.walk_cycle:
+            sprite = self.walk_cycle[self.walk_frame % len(self.walk_cycle)]
+        else:
+            sprite = self.idle_sprite
+        self.player_sprite = sprite
         rect = sprite.get_rect()
         rect.midbottom = (int(px), int(py))
         surface.blit(sprite, rect)
@@ -378,6 +448,19 @@ class HomeScene(Scene):
         shadow_rect = shadow.get_rect()
         shadow_rect.midtop = (rect.centerx, rect.bottom - 4)
         surface.blit(shadow, shadow_rect)
+
+    def _draw_decor(self, surface: pygame.Surface, room: HomeRoom) -> None:
+        items = sorted(room.decor, key=lambda item: item.position.y)
+        for decor in items:
+            dx, dy = self._project_point(decor.position)
+            rect = decor.sprite.get_rect()
+            if decor.anchor == "center":
+                rect.center = (int(dx + decor.pixel_offset.x), int(dy + decor.pixel_offset.y))
+            elif decor.anchor == "topleft":
+                rect.topleft = (int(dx + decor.pixel_offset.x), int(dy + decor.pixel_offset.y))
+            else:
+                rect.midbottom = (int(dx + decor.pixel_offset.x), int(dy + decor.pixel_offset.y))
+            surface.blit(decor.sprite, rect)
 
     def _draw_npcs(self, surface: pygame.Surface) -> None:
         for npc in self.npcs:
@@ -395,7 +478,31 @@ class HomeScene(Scene):
 
     def _draw_marker(self, surface: pygame.Surface, position: pygame.math.Vector2, color: Tuple[int, int, int]) -> None:
         mx, my = self._project_point(position)
-        pygame.draw.circle(surface, color, (int(mx), int(my - 14)), 8)
+        diamond = [
+            (int(mx), int(my - 12)),
+            (int(mx + 12), int(my)),
+            (int(mx), int(my + 12)),
+            (int(mx - 12), int(my)),
+        ]
+        glow = pygame.Surface((32, 32), pygame.SRCALPHA)
+        pygame.draw.polygon(glow, (*color, 90), [
+            (16, 4),
+            (28, 16),
+            (16, 28),
+            (4, 16),
+        ])
+        glow_rect = glow.get_rect()
+        glow_rect.center = (int(mx), int(my))
+        surface.blit(glow, glow_rect)
+        pygame.draw.polygon(surface, color, diamond, 2)
+
+    def _draw_highlights(self, surface: pygame.Surface) -> None:
+        if self._active_door:
+            self._draw_marker(surface, self._active_door.position, COLORS.accent_ui)
+        if self._active_interaction:
+            self._draw_marker(surface, self._active_interaction.position, COLORS.accent_fries)
+        if self._active_npc:
+            self._draw_marker(surface, self._active_npc.position, COLORS.accent_cool)
 
     def _draw_prompts(self, surface: pygame.Surface) -> None:
         prompt_lines: List[str] = []
@@ -438,8 +545,9 @@ class HomeScene(Scene):
 
     def _build_rooms(self) -> Dict[str, HomeRoom]:
         rooms: Dict[str, HomeRoom] = {}
+
         hall_blocked = self._perimeter_blocks(7, 7)
-        hall_blocked.update({(2, 3), (4, 3)})
+        hall_blocked.update({(2, 3), (4, 3), (1, 5), (2, 5), (5, 2)})
         hall_doors = [
             Doorway("hall_to_kitchen", pygame.math.Vector2(5, 3), "kitchen", pygame.math.Vector2(1.5, 3.0), "Kitchen"),
             Doorway("hall_to_bedroom", pygame.math.Vector2(3, 1), "bedroom", pygame.math.Vector2(3.0, 4.5), "Bedroom"),
@@ -456,6 +564,10 @@ class HomeScene(Scene):
                 modes=("dawn",),
             )
         ]
+        hall_decor = [
+            HomeDecor(wardrobe_sprite(), pygame.math.Vector2(2.2, 5.8)),
+            HomeDecor(plant_sprite(), pygame.math.Vector2(5.0, 2.3), pixel_offset=pygame.math.Vector2(0, -12)),
+        ]
         rooms["hall"] = HomeRoom(
             key="hall",
             display_name="Hallway",
@@ -465,10 +577,12 @@ class HomeScene(Scene):
             blocked=hall_blocked,
             doors=hall_doors,
             interactions=hall_interactions,
+            decor=hall_decor,
         )
 
         kitchen_blocked = self._perimeter_blocks(7, 6)
         kitchen_blocked.update({(x, 1) for x in range(1, 6)})
+        kitchen_blocked.update({(5, 2), (5, 3)})
         kitchen_doors = [
             Doorway("kitchen_to_hall", pygame.math.Vector2(1, 3), "hall", pygame.math.Vector2(4.5, 3.0), "Hallway"),
         ]
@@ -480,7 +594,21 @@ class HomeScene(Scene):
                 "Press Enter to start the fry shift",
                 "fryer",
                 modes=("afternoon",),
-            )
+            ),
+            HomeInteraction(
+                "snack_counter",
+                pygame.math.Vector2(3.2, 3.4),
+                0.8,
+                "Grab a quick bite — Press Enter",
+                "snack",
+                modes=("dawn", "afternoon", "evening"),
+            ),
+        ]
+        kitchen_decor = [
+            HomeDecor(counter_sprite(), pygame.math.Vector2(3.6, 1.2)),
+            HomeDecor(stove_sprite(), pygame.math.Vector2(2.2, 1.3)),
+            HomeDecor(fridge_sprite(), pygame.math.Vector2(5.6, 1.0)),
+            HomeDecor(coffee_table_sprite(), pygame.math.Vector2(3.2, 3.6)),
         ]
         rooms["kitchen"] = HomeRoom(
             key="kitchen",
@@ -491,12 +619,19 @@ class HomeScene(Scene):
             blocked=kitchen_blocked,
             doors=kitchen_doors,
             interactions=kitchen_interactions,
+            decor=kitchen_decor,
         )
 
         living_blocked = self._perimeter_blocks(7, 6)
-        living_blocked.update({(2, 2), (4, 2)})
+        living_blocked.update({(2, 2), (3, 2), (4, 2), (2, 3), (4, 3)})
         living_doors = [
             Doorway("living_to_hall", pygame.math.Vector2(3, 1), "hall", pygame.math.Vector2(3.0, 4.5), "Hallway"),
+        ]
+        living_decor = [
+            HomeDecor(sofa_sprite(), pygame.math.Vector2(3.2, 3.6)),
+            HomeDecor(coffee_table_sprite(), pygame.math.Vector2(3.2, 4.6)),
+            HomeDecor(tv_stand_sprite(), pygame.math.Vector2(3.2, 1.4)),
+            HomeDecor(plant_sprite(), pygame.math.Vector2(5.4, 2.0), pixel_offset=pygame.math.Vector2(0, -14)),
         ]
         rooms["living"] = HomeRoom(
             key="living",
@@ -507,17 +642,18 @@ class HomeScene(Scene):
             blocked=living_blocked,
             doors=living_doors,
             interactions=[],
+            decor=living_decor,
         )
 
         bedroom_blocked = self._perimeter_blocks(7, 6)
-        bedroom_blocked.update({(2, 2), (5, 3)})
+        bedroom_blocked.update({(1, 3), (1, 4), (2, 3), (2, 4), (5, 2), (5, 3)})
         bedroom_doors = [
             Doorway("bedroom_to_hall", pygame.math.Vector2(3, 5), "hall", pygame.math.Vector2(3.0, 2.0), "Hallway"),
         ]
         bedroom_interactions = [
             HomeInteraction(
                 "outfit_closet",
-                pygame.math.Vector2(2.0, 2.0),
+                pygame.math.Vector2(1.8, 2.2),
                 0.9,
                 "Pick outfit — Press Enter",
                 "outfit",
@@ -525,7 +661,7 @@ class HomeScene(Scene):
             ),
             HomeInteraction(
                 "pack_bag",
-                pygame.math.Vector2(5.5, 3.5),
+                pygame.math.Vector2(5.4, 3.4),
                 0.9,
                 "Pack bag — Press Enter",
                 "pack",
@@ -533,12 +669,18 @@ class HomeScene(Scene):
             ),
             HomeInteraction(
                 "phone_desk",
-                pygame.math.Vector2(5.0, 2.0),
+                pygame.math.Vector2(5.2, 2.2),
                 0.8,
                 "Open phone — Press Enter",
                 "phone",
                 modes=("evening",),
             ),
+        ]
+        bedroom_decor = [
+            HomeDecor(bed_sprite(), pygame.math.Vector2(2.4, 4.2)),
+            HomeDecor(wardrobe_sprite(), pygame.math.Vector2(1.6, 2.0)),
+            HomeDecor(desk_sprite(), pygame.math.Vector2(5.2, 2.0)),
+            HomeDecor(plant_sprite(), pygame.math.Vector2(4.6, 3.0), pixel_offset=pygame.math.Vector2(0, -12)),
         ]
         rooms["bedroom"] = HomeRoom(
             key="bedroom",
@@ -549,21 +691,27 @@ class HomeScene(Scene):
             blocked=bedroom_blocked,
             doors=bedroom_doors,
             interactions=bedroom_interactions,
+            decor=bedroom_decor,
         )
 
         bathroom_blocked = self._perimeter_blocks(5, 5)
+        bathroom_blocked.update({(1, 2), (3, 2), (1, 3), (3, 3)})
         bathroom_doors = [
             Doorway("bathroom_to_hall", pygame.math.Vector2(3, 4), "hall", pygame.math.Vector2(1.5, 4.5), "Hallway"),
         ]
         bathroom_interactions = [
             HomeInteraction(
                 "shower_booth",
-                pygame.math.Vector2(3.0, 2.4),
+                pygame.math.Vector2(3.0, 2.2),
                 0.8,
                 "Quick shower — Press Enter",
                 "shower",
                 modes=("dawn",),
             )
+        ]
+        bathroom_decor = [
+            HomeDecor(shower_sprite(), pygame.math.Vector2(3.0, 2.0)),
+            HomeDecor(sink_sprite(), pygame.math.Vector2(2.0, 3.2)),
         ]
         rooms["bathroom"] = HomeRoom(
             key="bathroom",
@@ -574,6 +722,7 @@ class HomeScene(Scene):
             blocked=bathroom_blocked,
             doors=bathroom_doors,
             interactions=bathroom_interactions,
+            decor=bathroom_decor,
         )
         return rooms
 

@@ -12,6 +12,7 @@ import os
 import random
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional
@@ -102,6 +103,8 @@ class LocalAIClient:
             return self._call_openrouter(request)
         if provider == "koboldcpp":
             return self._call_kobold(request)
+        if provider == "pollinations":
+            return self._call_pollinations(request)
         return self._call_generic(request)
 
     def _build_headers(self) -> Dict[str, str]:
@@ -225,6 +228,23 @@ class LocalAIClient:
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
             return None
         return None
+
+    def _call_pollinations(self, request: AIRequest) -> Optional[str]:
+        endpoint = self.settings.endpoint or "https://text.pollinations.ai/openai"
+        query_prompt = f"{self.settings.fallback_personas.get(request.persona, request.persona)}\n\n{request.prompt}"
+        params = urllib.parse.urlencode({
+            "text": query_prompt,
+            "model": self.settings.model or "gpt-4o-mini",
+            "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
+        })
+        url = f"{endpoint}?{params}"
+        try:
+            with urllib.request.urlopen(url, timeout=self.settings.timeout) as resp:
+                body = resp.read().decode("utf-8")
+            return body.strip()
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, UnicodeDecodeError):
+            return None
 
     def poll_response(self, request_id: int) -> Optional[str]:
         return self.responses.get(request_id)

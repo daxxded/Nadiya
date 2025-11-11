@@ -41,6 +41,11 @@
       "clock_end": 960
     }
   },
+  "home": {
+    "snack_hunger": 8,
+    "snack_mood": 2,
+    "snack_cooldown": 26
+  },
   "events": {
     "mom_drunk_threshold": 65,
     "perfect_fries_hits": 0,
