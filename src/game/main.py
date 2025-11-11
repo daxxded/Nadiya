@@ -6,6 +6,7 @@ import argparse
 import sys
 
 import pygame
+import pygame.freetype
 
 from game.ai.local_client import LocalAIClient
 from game.config import BASE_HEIGHT, BASE_WIDTH
@@ -22,6 +23,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     pygame.init()
+    pygame.freetype.init()
     flags = pygame.HIDDEN if args.headless else 0
     screen = pygame.display.set_mode((BASE_WIDTH, BASE_HEIGHT), flags=flags)
     pygame.display.set_caption("Nadiya Simulator")

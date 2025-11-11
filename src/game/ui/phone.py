@@ -106,7 +106,9 @@ class DiscordApp:
                 text = "".join(self.input_buffer).strip()
                 if text:
                     self._send_message(text)
-                    self.input_buffer.clear()
+                    self.input_buffer = []
+                    self.cursor_visible = True
+                    self.cursor_timer = 0.0
             elif event.key == pygame.K_BACKSPACE:
                 if self.input_buffer:
                     self.input_buffer.pop()
